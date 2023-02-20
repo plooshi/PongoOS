@@ -3011,7 +3011,7 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
             return false;
         }
 
-        printf("mov is 0x%x\n", bof[0]);
+        printf("mov is 0x%x\n", mov[0]);
 
         mov[0] = 0xd2800013;
 
