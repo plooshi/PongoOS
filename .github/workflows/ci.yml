@@ -52,4 +52,4 @@ jobs:
           forceUpload: true
           dryRun: false
           localDir: 'build'
-          remoteDir: '/palera1n/artifacts/kpf'
+          remoteDir: '/palera1n/artifacts/kpf/galaxy'

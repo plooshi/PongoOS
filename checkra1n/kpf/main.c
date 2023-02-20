@@ -2993,6 +2993,46 @@ void kpf_proc_selfname_patch(xnu_pf_patchset_t* patchset) {
     xnu_pf_maskmatch(patchset, "proc_selfname", i_matches, i_masks, sizeof(i_masks)/sizeof(uint64_t), false, (void*)proc_selfname_callback);
 }
 
+bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
+    printf("callback\n");
+
+    uint64_t page = ((uint64_t)(opcode_stream) & ~0xfffULL) + adrp_off(opcode_stream[0]);
+    uint32_t off = (opcode_stream[1] >> 10) & 0xfff;
+    const char *str = (const char *)(page + off);
+
+    if (strcmp(str, "firmwareExecutionCallback") == 0) {
+        printf("KPF: found galaxy patch\n");
+        xnu_pf_disable_patch(patch);
+
+        uint32_t mov = find_prev_insn(opcode_stream, 0x10, 0xaa0203e0, 0xffffffec);
+
+        if (!mov) {
+            printf("galaxy patch: failed to find mov!\n");
+            return false;
+        }
+
+        *((uint8_t *) opcode_stream + 0x1) = 0x1f;
+
+        return true;
+    }
+
+    return false;
+}
+
+void kpf_galaxy_patch(xnu_pf_patchset *patchset) {
+    uint64_t matches[] = {
+        0x00000000,
+        0x91000000
+    };
+
+    uint64_t masks[] = {
+        0x0f000000,
+        0xff000000
+    }
+
+    xnu_pf_maskmatch(patchset, "galaxy", matches, masks, sizeof(matches)/sizeof(uint64_t), true, (void *) kpf_galaxy_callback);
+}
+
 checkrain_option_t gkpf_flags, checkra1n_flags, palera1n_flags;
 
 int gkpf_didrun = 0;
@@ -3107,6 +3147,16 @@ void command_kpf() {
 
         kpf_find_iomemdesc(xnu_text_exec_patchset);
     }
+
+    struct mach_header_64 *upd_hdr = xnu_pf_get_kext_header(hdr, "com.apple.driver.AppleFirmwareUpdateKext");
+    xnu_pf_range_t *upd_kext_range = xnu_pf_section(upd_hdr, "__TEXT_EXEC", "__text");
+    xnu_pf_patchset_t *upd_kext_patchset = xnu_pf_patchset_create(XNU_PF_ACCESS_32BIT);
+
+    kpf_galaxy_patch(upd_kext_patchset);
+
+    xnu_pf_emit(upd_kext_patchset);
+    xnu_pf_apply(upd_kext_range, upd_kext_patchset);
+    xnu_pf_patchset_destroy(upd_kext_patchset);
 
     // TODO
     //struct mach_header_64* accessory_header = xnu_pf_get_kext_header(hdr, "com.apple.iokit.IOAccessoryManager");
