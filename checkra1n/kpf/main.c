@@ -3011,6 +3011,8 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
             return false;
         }
 
+        printf("ploosh is gay because 0x%x", mov);
+
         *((uint8_t *) opcode_stream + 0x1) = 0x1f;
 
         return true;
