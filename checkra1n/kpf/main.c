@@ -3006,12 +3006,12 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
 
         uint32_t *bof = find_prev_insn(opcode_stream, 0x20, 0xd10003ff, 0xfffebfff);
 
-        if (!mov) {
-            printf("galaxy patch: failed to find mov!\n");
+        if (!bof) {
+            printf("galaxy patch: failed to find start of function!\n");
             return false;
         }
 
-        printf("beginning of func is 0x%x\n", xnu_ptr_to_va(bof));
+        printf("beginning of func is 0x%lx\n", xnu_ptr_to_va(bof));
 
         bof[0] = 0xd2800000;
         bof[1] = RET;
