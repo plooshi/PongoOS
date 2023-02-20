@@ -3021,6 +3021,8 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
             printf("galaxy patch: failed to find mov 2!\n");
             return false;
         }
+        
+        printf("%x %x\n", mov[0], mov[1]);
 
         uint32_t *cbz_addr = xnu_va_to_ptr(xnu_ptr_to_va(mov + 1) + (sxt32(mov[1], 19) << 2));
         
