@@ -3019,7 +3019,7 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
     return false;
 }
 
-void kpf_galaxy_patch(xnu_pf_patchset *patchset) {
+void kpf_galaxy_patch(xnu_pf_patchset_t *patchset) {
     uint64_t matches[] = {
         0x00000000,
         0x91000000
@@ -3028,7 +3028,7 @@ void kpf_galaxy_patch(xnu_pf_patchset *patchset) {
     uint64_t masks[] = {
         0x0f000000,
         0xff000000
-    }
+    };
 
     xnu_pf_maskmatch(patchset, "galaxy", matches, masks, sizeof(matches)/sizeof(uint64_t), true, (void *) kpf_galaxy_callback);
 }
