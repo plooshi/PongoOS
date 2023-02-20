@@ -3007,7 +3007,7 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
         uint32_t *mov = find_prev_insn(opcode_stream, 0x10, 0xaa0203e0, 0xffffffec);
 
         if (!mov) {
-            printf("galaxy patch: failed to find mov!\n");
+            printf("galaxy patch: failed to find mov 1!\n");
             return false;
         }
 
@@ -3018,7 +3018,7 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
         mov = find_next_insn(opcode_stream, 0x16, 0xd2800000, 0xffff0000);
 
         if (!mov) {
-            printf("galaxy patch: failed to find mov!\n");
+            printf("galaxy patch: failed to find mov 2!\n");
             return false;
         }
 
@@ -3026,10 +3026,12 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
 
         uint32_t *cbz_addr = xnu_va_to_ptr(xnu_ptr_to_va(mov + 1) + (sxt32(mov + 1, 19) << 2));
 
+        printf("%d\n", cbz_addr[2]);
+
         mov = find_next_insn(cbz_addr, 0x10, 0xaa0003e2, 0xff00ffff);
 
         if (!mov) {
-            printf("galaxy patch: failed to find mov!\n");
+            printf("galaxy patch: failed to find mov 3!\n");
             return false;
         }
 
