@@ -3024,7 +3024,7 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
         
         printf("%x %x\n", mov[0], mov[1]);
 
-        uint32_t *cbz_addr = xnu_va_to_ptr(xnu_ptr_to_va(mov + 1) + (sxt32(mov[1], 19) << 2));
+        uint32_t *cbz_addr = xnu_va_to_ptr(xnu_ptr_to_va(mov + 1) + (sxt32(mov[1] >> 5, 19) << 2));
         
         mov[1] = 0x14000000 | (sxt32(mov[1] >> 5, 19) & 0x03ffffff);
 
