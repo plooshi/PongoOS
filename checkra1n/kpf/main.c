@@ -2994,8 +2994,6 @@ void kpf_proc_selfname_patch(xnu_pf_patchset_t* patchset) {
 }
 
 bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
-    printf("callback\n");
-
     uint64_t page = ((uint64_t)(opcode_stream) & ~0xfffULL) + adrp_off(opcode_stream[0]);
     uint32_t off = (opcode_stream[1] >> 10) & 0xfff;
     const char *str = (const char *)(page + off);
@@ -3005,13 +3003,13 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
         xnu_pf_disable_patch(patch);
 
         uint32_t *mov = find_prev_insn(opcode_stream, 0x10, 0xaa0203e0, 0xffffffec);
-
+        
         if (!mov) {
             printf("galaxy patch: failed to find mov 1!\n");
             return false;
         }
 
-        printf("mov is 0x%x\n", mov[0]);
+        printf("0x%lx, mov is 0x%x\n", xnu_ptr_to_va(mov), mov[0]);
 
         mov[0] = 0xd2800013;
 
@@ -3022,13 +3020,13 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
             return false;
         }
         
-        printf("%x %x\n", mov[0], mov[1]);
+        printf("0x%lx %x %x\n", xnu_ptr_to_va(mov), mov[0], mov[1]);
 
         uint32_t *cbz_addr = xnu_va_to_ptr(xnu_ptr_to_va(mov + 1) + (sxt32(mov[1] >> 5, 19) << 2));
         
         mov[1] = 0x14000000 | (sxt32(mov[1] >> 5, 19) & 0x03ffffff);
 
-        printf("%x %x %x\n", cbz_addr[0], cbz_addr[2], cbz_addr[4]);
+        printf("0x%lx %x %x %x\n", xnu_ptr_to_va(cbz_addr), cbz_addr[0], cbz_addr[2], cbz_addr[4]);
 
         mov = find_next_insn(cbz_addr, 0x10, 0xaa0003e2, 0xffecffff);
 
@@ -3036,6 +3034,8 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
             printf("galaxy patch: failed to find mov 3!\n");
             return false;
         }
+        
+        printf("%lx\n", xnu_ptr_to_va(mov));
 
         mov[0] = 0xd2800002;
         mov[-1] = 0xd2800021;
