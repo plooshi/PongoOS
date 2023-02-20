@@ -3004,7 +3004,7 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
         printf("KPF: found galaxy patch\n");
         xnu_pf_disable_patch(patch);
 
-        uint32_t mov = find_prev_insn(opcode_stream, 0x10, 0xaa0203e0, 0xffffffec);
+        uint32_t *mov = find_prev_insn(opcode_stream, 0x10, 0xaa0203e0, 0xffffffec);
 
         if (!mov) {
             printf("galaxy patch: failed to find mov!\n");
