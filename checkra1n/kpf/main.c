@@ -3030,7 +3030,7 @@ bool kpf_galaxy_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
 
         if (!mov) {
             printf("galaxy patch: failed to find mov!\n");
-            return false
+            return false;
         }
 
         mov[0] = 0xd2800002;
