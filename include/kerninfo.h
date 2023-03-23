@@ -54,6 +54,14 @@
 #define checkrain_option_overlay            (1 << 2)
 #define checkrain_option_force_revert       (1 << 7) /* keep this at 7 */
 
+// palera1n options
+#define palerain_option_rootful              (1 << 0) /* rootful jailbreak */
+#define palerain_option_jbinit_log_to_file   (1 << 1) /* log to /cores/jbinit.log */
+#define palerain_option_setup_rootful        (1 << 2) /* create fakefs */
+#define palerain_option_setup_rootful_forced (1 << 3) /* create fakefs over an existing one */
+
+#define PALEINFO_MAGIC 'PLSH'
+
 typedef uint32_t checkrain_option_t, *checkrain_option_p;
 
 typedef enum {
@@ -68,6 +76,12 @@ struct kerninfo {
     uint64_t base;
     uint64_t slide;
     checkrain_option_t flags;
+};
+struct paleinfo {
+    uint32_t magic; // 'PLSH' / 0x504c5348
+    uint32_t version; // 1
+    checkrain_option_t flags;
+    char rootdev[0x10];
 };
 struct kpfinfo {
     struct kerninfo k;
