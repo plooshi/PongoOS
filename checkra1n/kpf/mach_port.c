@@ -205,7 +205,12 @@ static bool found_task_conversion_eval_imm = false;
 
 static bool kpf_task_conversion_eval_callback_ldr(struct xnu_pf_patch *patch, uint32_t *opcode_stream)
 {
+    #ifdef DEV_BUILD
     uint32_t * const orig = opcode_stream;
+    #define _panic(msg, ...) panic_at(orig, msg, ##__VA_ARGS__);
+    #else
+    #define _panic(msg, ...) panic(msg, ##__VA_ARGS__);
+    #endif
     uint32_t lr1 = opcode_stream[0],
              lr2 = opcode_stream[2];
     // Step 2
@@ -213,11 +218,11 @@ static bool kpf_task_conversion_eval_callback_ldr(struct xnu_pf_patch *patch, ui
     // loaded by ldr, and that both ldr's use the same offset.
     if((lr1 & 0x1f) != (opcode_stream[1] & 0x1f) || (lr2 & 0x1f) != (opcode_stream[3] & 0x1f) || (lr1 & 0x3ffc00) != (lr2 & 0x3ffc00))
     {
-        panic_at(orig, "kpf_task_conversion_eval: opcode check failed");
+        _panic("kpf_task_conversion_eval: opcode check failed");
     }
     if(found_task_conversion_eval_bl || found_task_conversion_eval_imm)
     {
-        panic_at(orig, "kpf_task_conversion_eval: found both bl/imm and ldr");
+        _panic("kpf_task_conversion_eval: found both bl/imm and ldr");
     }
     found_task_conversion_eval_ldr = true;
 
@@ -280,7 +285,7 @@ static bool kpf_task_conversion_eval_callback_ldr(struct xnu_pf_patch *patch, ui
             regs |= ((regs >> dst) & 1) << src;
         }
     }
-    panic_at(orig, "kpf_task_conversion_eval: failed to find cmp");
+    _panic("kpf_task_conversion_eval: failed to find cmp");
 }
 
 static bool kpf_task_conversion_eval_callback_common(uint32_t *opcode_stream, bool can_double_match)

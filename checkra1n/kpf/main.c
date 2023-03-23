@@ -1235,7 +1235,7 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) 
             0xffffffe0,
             0xfc000000
         };
-         xnu_pf_maskmatch(patchset, "handle_eval_rootauth", rootauth_matches, rootauth_masks, sizeof(rootauth_masks) / sizeof(uint64_t), false, (void *)kpf_apfs_rootauth_new);
+         xnu_pf_maskmatch(patchset, "handle_eval_rootauth", rootauth2_matches, rootauth2_masks, sizeof(rootauth2_masks) / sizeof(uint64_t), false, (void *)kpf_apfs_rootauth_new);
     }
 }
 static uint32_t* amfi_ret;
@@ -2373,7 +2373,7 @@ void command_kpf(const char *cmd, char *args)
             {
                 bundle = hdr;
             }
-            xnu_pf_range_t *range = patch->section ? xnu_pf_section(bundle, patch->segment, patch->section) : xnu_pf_segment(bundle, patch->segment);
+            xnu_pf_range_t *range = patch->section ? xnu_pf_section(bundle, (void *)patch->segment, (char *)patch->section) : xnu_pf_segment(bundle, (char *)patch->segment);
             if(!range)
             {
                 if(patch->section)
@@ -2936,7 +2936,7 @@ void set_launchd(const char* cmd, char* args) {
     xnu_pf_patchset_destroy(text_patchset);
 }
 
-void module_entry() {
+void module_entry(void) {
     puts("");
     puts("");
     puts("#==================");
@@ -2963,7 +2963,7 @@ void module_entry() {
     puts("# Cellebrite (ih8sn0w, cjori, ronyrus et al.)");
     puts("#==================");
 
-    preboot_hook = command_kpf;
+    preboot_hook = (void (*)(void))command_kpf;
     command_register("checkra1n_flags", "set flags for checkra1n userland", checkra1n_flags_cmd);
     command_register("kpf_flags", "set flags for kernel patchfinder", kpf_flags_cmd);
     command_register("kpf", "running checkra1n-kpf without booting (use bootux afterwards)", command_kpf);
