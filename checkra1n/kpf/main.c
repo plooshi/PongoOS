@@ -1093,7 +1093,7 @@ bool kpf_apfs_rootauth_new(struct xnu_pf_patch *patch, uint32_t *opcode_stream) 
     opcode_stream[0] = NOP;
     opcode_stream[1] = 0x52800000 | (opcode_stream[1] & 0x1f); /* mov wN, 0 */
     
-    uint32_t *ret_stream = follow_call(opcode_stream[2]);
+    uint32_t *ret_stream = follow_call(opcode_stream + 2);
     
     if (!ret_stream) {
         printf("KPF: failed to follow branch!");
@@ -2878,7 +2878,7 @@ void dtpatcher(const char* cmd, char* args) {
     
     // newfs: newfs_apfs -A -D -o role=r -v Xystem /dev/disk1
     
-    uint32_t root_matching_len = 0;
+    size_t root_matching_len = 0;
     dt_node_t* chosen = dt_find(gDeviceTree, "chosen");
     if (!chosen) panic("invalid devicetree: no device!");
     uint32_t* root_matching = dt_prop(chosen, "root-matching", &root_matching_len);
@@ -2895,7 +2895,7 @@ void dtpatcher(const char* cmd, char* args) {
         memcpy(root_matching, str, 0x100);
         printf("set new entry: %016llx: BSD Name: %s\n", (uint64_t)root_matching, args);
     } else {
-        uint32_t max_fs_entries_len = 0;
+        size_t max_fs_entries_len = 0;
         dt_node_t* fstab = dt_find(gDeviceTree, "fstab");
         if (!fstab) panic("invalid devicetree: no fstab!");
         uint32_t* max_fs_entries = dt_prop(fstab, "max_fs_entries", &max_fs_entries_len);
