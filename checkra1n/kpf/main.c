@@ -1085,38 +1085,50 @@ bool kpf_apfs_rootauth(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
     opcode_stream[0] = NOP;
     opcode_stream[1] = 0x52800000; /* mov w0, 0 */
 
-    puts("KPF: found handle_eval_rootauth");
+    printf("KPF: found handle_eval_rootauth\n");
     return true;
 }
 
 bool kpf_apfs_rootauth_new(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
+    uint32_t orig_register = (opcode_stream[1] & 0x1f);
     opcode_stream[0] = NOP;
-    opcode_stream[1] = 0x52800000 | (opcode_stream[1] & 0x1f); /* mov wN, 0 */
+    opcode_stream[1] = 0x52800000 | orig_register; /* mov wN, 0 */
     
     uint32_t *ret_stream = follow_call(opcode_stream + 2);
     
     if (!ret_stream) {
-        printf("KPF: failed to follow branch!");
+        printf("KPF: failed to follow branch\n");
         return false;
     }
     
-    uint32_t *mov = find_next_insn(ret_stream, 0x10, 0xaa0003e0, 0xffe0ffff);
-    
-    if (!mov) {
-        printf("KPF: failed to find mov\n");
-        return false;
+    uint32_t *mov = ret_stream;
+    while (true) {  
+        mov = find_next_insn(mov, 0x10, 0xaa0003e0, 0xffe0ffff); // mov x0, xN
+
+        if (!mov) {
+            printf("KPF: failed to find mov\n");
+            return false;
+        }
+
+        uint32_t mov_register = (mov[0] >> 16) & 0x1f;
+
+        if (mov_register == orig_register) {
+            break;
+        }
+
+        mov++;
     }
     
     mov[0] = 0xd2800000; /* mov x0, 0 */
 
-    puts("KPF: found handle_eval_rootauth");
+    printf("KPF: found handle_eval_rootauth\n");
     return true;
 }
 
 bool kpf_apfs_vfsop_mount(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
     opcode_stream[0] = 0x52800000; /* mov w0, 0 */
     
-    puts("KPF: found apfs_vfsop_mount");
+    printf("KPF: found apfs_vfsop_mount\n");
     
     return true;
 }
@@ -1225,6 +1237,7 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) 
         };
         xnu_pf_maskmatch(patchset, "handle_eval_rootauth", rootauth_matches, rootauth_masks, sizeof(rootauth_masks) / sizeof(uint64_t), false, (void *)kpf_apfs_rootauth);
         
+        // r2: /x 68002837000a805200000014:ffffffffe0ffffff000000fc
         uint64_t rootauth2_matches[] = {
             0x37280068, // tbnz w8, 5, 0xc
             0x52800a00, // mov wN, 0x50
@@ -1235,7 +1248,7 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) 
             0xffffffe0,
             0xfc000000
         };
-         xnu_pf_maskmatch(patchset, "handle_eval_rootauth", rootauth2_matches, rootauth2_masks, sizeof(rootauth2_masks) / sizeof(uint64_t), false, (void *)kpf_apfs_rootauth_new);
+        xnu_pf_maskmatch(patchset, "handle_eval_rootauth", rootauth2_matches, rootauth2_masks, sizeof(rootauth2_masks) / sizeof(uint64_t), false, (void *)kpf_apfs_rootauth_new);
     }
 }
 static uint32_t* amfi_ret;
