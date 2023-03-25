@@ -1232,7 +1232,7 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) 
         0xf100011f, // cmp x8, 0
         0x9a880240, // csel x0, x{19/26}, x8, eq
         0x00000000, // ignore
-        0x00000094, // bl
+        0x94000000, // bl
         0xaa0003e0  // mov x*, x*
     };
 
@@ -1241,7 +1241,7 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) 
         0xffffffff,
         0xfffffedf,
         0x00000000,
-        0x000000fc,
+        0xfc000000,
         0xffe0ffe0
     };
     
