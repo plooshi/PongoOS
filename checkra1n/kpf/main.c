@@ -1059,7 +1059,7 @@ bool kpf_apfs_auth_required(struct xnu_pf_patch* patch, uint32_t* opcode_stream)
 }
 
 bool kpf_apfs_vfsop_mount(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
-    opcode_stream[0] = 0x52800000; /* mov w0, 0 */
+    opcode_stream[0] = NOP; // /* mov w0, 0 */
     
     printf("KPF: found apfs_vfsop_mount\n");
     
