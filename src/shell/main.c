@@ -36,7 +36,7 @@ extern volatile char gBootFlag;
 
 */
 
-void pongo_boot_raw() {
+void pongo_boot_raw(const char* cmd, char* args) {
     if (!loader_xfer_recv_count) {
         iprintf("please upload a raw image before issuing this command\n");
         return;
@@ -56,7 +56,7 @@ uint32_t ramdisk_size;
 
  */
 
-void ramdisk_cmd() {
+void ramdisk_cmd(const char* cmd, char* args) {
     if (!loader_xfer_recv_count) {
         iprintf("please upload a ramdisk before issuing this command\n");
         return;
@@ -76,11 +76,11 @@ void ramdisk_cmd() {
 
 */
 
-void pongo_spin() {
+void pongo_spin(const char *cmd, char *args) {
     spin(1000000);
 }
 
-void start_host_shell() {
+void start_host_shell(const char *cmd, char *args) {
     task_current()->flags |= TASK_CAN_EXIT;
 
     command_unregister("shell");
@@ -241,7 +241,7 @@ void recursion_cmd(const char* cmd, char* args) {
 
 */
 
-void shell_main() {
+void shell_main(void) {
     /*
         Load command handler
     */
@@ -268,8 +268,8 @@ void shell_main() {
         Load USB Loader
     */
 
-    extern void modload_cmd();
-    command_register("modload", "loads module", modload_cmd);
+    extern void modload_cmd(void);
+    command_register("modload", "loads module", (void (*)(const char* cmd, char* args))modload_cmd);
     command_init();
 
     xnu_init();

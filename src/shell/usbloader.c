@@ -99,7 +99,7 @@ void usbloader_init() {
 } // fetch_stdoutbuf
 
 char stdoutbuf_copy[STDOUT_BUFLEN];
-void usb_read_stdout_cb() {
+void usb_read_stdout_cb(void) {
 
 }
 bool ep0_device_request(struct setup_packet *setup) {

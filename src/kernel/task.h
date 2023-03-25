@@ -77,12 +77,12 @@ struct vm_space {
     struct vm_space* parent;
     uint64_t asid;
 };
-extern void vm_init();
+extern void vm_init(void);
 
 struct proc {
     uint32_t refcount;
     struct filetable* file_table;
-    struct vm_space* vm_space; // single tasks may have a different one, but proc_spawn_task() will use this one
+    struct vm_space* vm_space; // single tasks may have a different one, but proc_spawn_task(void) will use this one
     char name[64];
     struct task* task_list;
     lock lock;
@@ -116,10 +116,10 @@ struct task { // a task is a thread-like execution environment, executing under 
     uint32_t flags;
     struct task* next;
     struct task* prev;
-    void (*exit_callback)();
+    void (*exit_callback)(void);
     uint32_t refcount;
     int32_t critical_count;
-    void (*fault_catch)();
+    void (*fault_catch)(void);
     struct vm_space* vm_space;
     uint64_t user_stack;
     uint64_t entry_stack;

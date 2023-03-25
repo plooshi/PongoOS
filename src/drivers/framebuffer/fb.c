@@ -49,7 +49,7 @@ void screen_fill(uint32_t color) {
 void screen_fill_basecolor() {
     return screen_fill(basecolor);
 }
-void screen_clear_all()
+void screen_clear_all(const char *cmd, char *args)
 {
     y_cursor = bannerHeight;
     for (int y = bannerHeight; y < gHeight; y++) {
@@ -197,7 +197,7 @@ void screen_mark_banner() {
     bannerHeight = y_cursor;
 }
 
-void screen_invert() {
+void screen_invert(const char *cmd, char *args) {
     for (int y = 0; y < gHeight; y++) {
         for (int x = 0; x < gWidth; x++) {
             gFramebuffer[x + y * gRowPixels] ^= 0xffffffff;

@@ -28,7 +28,7 @@
 #include <aes/aes_private.h>
 #include <recfg/recfg_soc_private.h>
 
-void shell_main();
+void shell_main(void);
 
 /*
 
@@ -38,7 +38,7 @@ void shell_main();
 */
 
 uint64_t gBootTimeTicks;
-void pongo_main_task() {
+void pongo_main_task(void) {
     gBootTimeTicks = get_ticks();
 
     // Setup HAL
@@ -78,7 +78,7 @@ void pongo_main_task() {
     puts("");
     puts("#==================");
     puts("#");
-    puts("# pongoOS " PONGO_VERSION);
+    puts("# pongoOS " PONGO_VERSION "-ploosh");
     puts("#");
     puts("# https://checkra.in");
     puts("#");
@@ -87,7 +87,7 @@ void pongo_main_task() {
 
     char *fwversion = dt_get_prop("/chosen", "firmware-version", NULL);
     iprintf("Booted by: %s\n", fwversion);
-    strcpy(fwversion, "pongoOS-" PONGO_VERSION);
+    strcpy(fwversion, "pongoOS-" PONGO_VERSION "-ploosh");
 #ifdef __clang__
     iprintf("Built with: Clang %s\n", __clang_version__);
 #else

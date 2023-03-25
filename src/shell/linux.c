@@ -38,7 +38,7 @@ extern void * fdt;
 extern bool fdt_initialized;
 extern char gLinuxCmdLine[LINUX_CMDLINE_SIZE];
 
-void fdt_cmd() {
+void fdt_cmd(const char *cmd, char *args) {
     if (!loader_xfer_recv_count) {
         iprintf("please upload a fdt before issuing this command\n");
         return;
@@ -73,7 +73,7 @@ void linux_cmdline_cmd(const char* cmd, char* args) {
 
 */
 
-void pongo_boot_linux() {
+void pongo_boot_linux(const char *cmd, char *args) {
     if (!linux_can_boot()) {
         printf("linux boot not prepared\n");
         return;
@@ -82,7 +82,7 @@ void pongo_boot_linux() {
     task_yield();
 }
 
-void linux_commands_register() {
+void linux_commands_register(void) {
     command_register("bootl", "boots linux", pongo_boot_linux);
     command_register("linux_cmdline", "update linux kernel command line", linux_cmdline_cmd);
     command_register("fdt", "load linux fdt from usb", fdt_cmd);

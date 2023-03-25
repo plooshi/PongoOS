@@ -58,7 +58,7 @@ static void reg_or(struct _reg reg, uint32_t val) {
 }
 
 
-static void USB_DEBUG_PRINT_REGISTERS();
+static void USB_DEBUG_PRINT_REGISTERS(void);
 
 static void USB_DEBUG_PRINT_REGISTERS() {
     disable_interrupts();
@@ -359,7 +359,7 @@ usb_write(const void *data, size_t size) {
 }
 
 void
-usb_write_commit() {
+usb_write_commit(void) {
     if (ktrw_send_count > 0 && ktrw_send_in_flight == 0) {
         ktrw_send_in_flight = ktrw_send_count;
         USB_DEBUG(USB_DEBUG_APP, "ktrw_send(%.*s)", (int) ktrw_send_in_flight, (char *) ktrw_send_data);
@@ -1746,7 +1746,7 @@ usb_ep_interrupt() {
     }
 }
 
-static void usb_reap();
+static void usb_reap(void);
 static struct event usb_done_ev;
 char usb_irq_mode;
 char usb_usbtask_handoff_mode;
@@ -1754,7 +1754,7 @@ uint16_t usb_irq;
 struct task* usbtask_niq;
 
 #define SUPPORTED_GINST 0xc3000
-void usb_handler() {
+void usb_handler(void) {
     uint32_t gintsts = 0;
     while (1) {
         uint32_t val = reg_read(rGINTSTS);
@@ -1779,7 +1779,7 @@ void usb_handler() {
     }
 }
 
-void usb_main_nonirq() {
+void usb_main_nonirq(void) {
     while (1) {
         disable_interrupts();
         usb_handler();
@@ -1791,7 +1791,7 @@ void usb_main_nonirq() {
 }
 
 
-void usb_main() {
+void usb_main(void) {
     while (1) {
         disable_interrupts();
         if (usb_usbtask_handoff_mode && usb_irq_mode) {
@@ -1971,7 +1971,7 @@ void usb_init(void)
     }
     else task_register(&usb_task, usb_main);
     enable_interrupts();
-    command_register("synopsys", "prints a synopsysotg register dump", USB_DEBUG_PRINT_REGISTERS);
+    command_register("synopsys", "prints a synopsysotg register dump", (void (*)(const char* cmd, char* args))USB_DEBUG_PRINT_REGISTERS);
 }
 
 static void usb_reap(void)

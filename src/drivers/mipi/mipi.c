@@ -63,8 +63,8 @@ struct mipi_command {
 void mipi_help(const char* cmd, char* args);
 static struct mipi_command command_table[] = {
     MIPI_COMMAND("help", "shows this message", mipi_help),
-    MIPI_COMMAND("sleep", "sends sleep command to mipi", mipi_sleep),
-    MIPI_COMMAND("wake", "sends wake command to mipi", mipi_wake)
+    MIPI_COMMAND("sleep", "sends sleep command to mipi", (void (*)(const char* cmd, char* args))(mipi_sleep)),
+    MIPI_COMMAND("wake", "sends wake command to mipi", (void (*)(const char* cmd, char* args))(mipi_wake))
 };
 
 void mipi_help(const char* cmd, char* args) {
@@ -97,7 +97,7 @@ void mipi_cmd(const char* cmd, char* args) {
 
 void mipi_init() {
     if(dt_find(gDeviceTree, "mipi-dsim")) {
-        uint64_t mipi_reg = dt_get_u32_prop("mipi-dsim", "reg");
+        uint64_t mipi_reg = dt_get_u32("mipi-dsim", "reg", 0);
         mipi_reg += gIOBase;
         gmipi_reg = mipi_reg;
         command_register("mipi", "mipi tools", mipi_cmd);

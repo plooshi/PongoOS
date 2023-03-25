@@ -742,7 +742,7 @@ struct pongo_module_info* pongo_module_create(uint32_t segmentCount) {
     enable_interrupts();
     return mod;
 }
-void pongo_module_print_list() {
+void pongo_module_print_list(void) {
     struct pongo_module_info* cur = head;
     while (cur) {
         iprintf(" | %26s @ 0x%llx->0x%llx\n", cur->name, cur->vm_base, cur->vm_end);

@@ -240,7 +240,7 @@ void sep_handle_msg_from_sep(union sep_message_u msg) {
 
     // [tbd]
 }
-void sep_check_mailbox() {
+void sep_check_mailbox(void) {
     uint32_t sts = (is_sep64) ? mailboxregs64->recv_sts : mailboxregs32->recv_sts;
     if ((sts & 0x20000) == 0) {
         union sep_message_u msg;
@@ -249,20 +249,20 @@ void sep_check_mailbox() {
         event_fire(&sep_msg_event);
     }
 }
-uint64_t sep_fast_check_mailbox() {
+uint64_t sep_fast_check_mailbox(void) {
     uint32_t sts = (is_sep64) ? mailboxregs64->recv_sts : mailboxregs32->recv_sts;
     if ((sts & 0x20000) == 0) {
         return mailbox_read_fast();
     }
     return 0;
 }
-void sep_irq() {
+void sep_irq(void) {
     while (1) {
         sep_check_mailbox();
         task_exit_irq();
     }
 }
-void seprom_ping() {
+void seprom_ping(void) {
     disable_interrupts();
     seprom_execute_opcode(1, 0, 0);
     event_wait_asserted(&sep_msg_event);
@@ -341,7 +341,7 @@ static bool seprom_config_integrity_tree(bool sync) {
     else     spin(2400);
     return true;
 }
-void seprom_boot_tz0() {
+void seprom_boot_tz0(void) {
     fuse_lock();
     // This needs disable_interrupts after
     if(!seprom_config_integrity_tree(true)) return;
@@ -349,7 +349,7 @@ void seprom_boot_tz0() {
     seprom_execute_opcode(5, 0, 0);
     event_wait_asserted(&sep_done_tz0_event);
 }
-void seprom_boot_tz0_async() {
+void seprom_boot_tz0_async(const char* cmd, char* args) {
     fuse_lock();
     // This needs disable_interrupts first
     disable_interrupts();
@@ -367,7 +367,7 @@ void seprom_load_sepos(void *firmware, char mode) {
     seprom_execute_opcode(6, mode, vatophys((uint64_t) (firmware)) >> 12);
     event_wait_asserted(&sep_msg_event);
 }
-void seprom_fwload() {
+void seprom_fwload(void) {
     // We clear this here to account for "sep auto" followed by manual invocation
     is_waiting_to_boot = 0;
     seprom_load_sepos(gSEPFW, 0);
@@ -645,7 +645,7 @@ no_kbag:
 }
 
 
-void seprom_fwload_race() {
+void seprom_fwload_race(void) {
     uint32_t volatile* shmshc = (uint32_t*)0x210E00000;
 
     if (shmshc[0] == 0xea000002) {
@@ -880,24 +880,24 @@ void seprom_load_art(void* art, char mode) {
     seprom_execute_opcode(6, mode, (vatophys((uint64_t)art)) >> 12);
     event_wait_asserted(&sep_msg_event);
 }
-void seprom_artload() {
+void seprom_artload(const char* cmd, char* args) {
     if (!loader_xfer_recv_count) {
         iprintf("please upload an ART before issuing this command\n");
         return;
     }
     seprom_load_art((void*)loader_xfer_recv_data, 0);
 }
-void seprom_resume() {
+void seprom_resume(const char* cmd, char* args) {
     disable_interrupts();
     seprom_execute_opcode(8, 0, 0);
     event_wait_asserted(&sep_msg_event);
 }
-void seprom_panic() {
+void seprom_panic(const char* cmd, char* args) {
     disable_interrupts();
     seprom_execute_opcode(10, 0, 0);
     event_wait_asserted(&sep_msg_event);
 }
-void seprom_rand() {
+void seprom_rand(const char* cmd, char* args) {
     disable_interrupts();
     seprom_execute_opcode(16, 0, 0);
     event_wait_asserted(&sep_rand_event);
@@ -911,7 +911,7 @@ struct sep_command {
     void (*cb)(const char* cmd, char* args);
 };
 
-void sep_help();
+void sep_help(const char* cmd, char* args);
 #define SEP_COMMAND(_name, _desc, _cb) {.name = _name, .desc = _desc, .cb = _cb}
 void sep_pwned_peek(const char* cmd, char* args) {
     if(!sep_is_pwned) {
@@ -1125,15 +1125,15 @@ static struct sep_command command_table[] = {
     SEP_COMMAND("help", "show usage", sep_help),
     SEP_COMMAND("auto", "automatically decide what to do", sep_auto),
 #ifndef SEP_AUTO_ONLY
-    SEP_COMMAND("ping", "ping seprom", seprom_ping),
-    SEP_COMMAND("tz0", "tell seprom to boot_tz0", seprom_boot_tz0),
+    SEP_COMMAND("ping", "ping seprom", (void (*)(const char* cmd, char* args))seprom_ping),
+    SEP_COMMAND("tz0", "tell seprom to boot_tz0", (void (*)(const char* cmd, char* args))seprom_boot_tz0),
     SEP_COMMAND("tz0a", "tell seprom to boot_tz0 without waiting", seprom_boot_tz0_async),
-    SEP_COMMAND("fwload", "tell seprom to load sepos image", seprom_fwload),
+    SEP_COMMAND("fwload", "tell seprom to load sepos image", (void (*)(const char* cmd, char* args))seprom_fwload),
     SEP_COMMAND("artload", "tell seprom to load anti-replay token", seprom_artload),
     SEP_COMMAND("resume", "tell seprom to resume", seprom_resume),
     SEP_COMMAND("panic", "tell seprom to panic", seprom_panic),
     SEP_COMMAND("rand", "ask seprom for randomness", seprom_rand),
-    SEP_COMMAND("pwn", "get sep code execution (must run while in seprom before tz0 lockdown / initialization)", seprom_fwload_race),
+    SEP_COMMAND("pwn", "get sep code execution (must run while in seprom before tz0 lockdown / initialization)", (void (*)(const char* cmd, char* args))seprom_fwload_race),
     SEP_COMMAND("peek", "read a 32 bit value", sep_pwned_peek),
     SEP_COMMAND("poke", "write a 32 bit value", sep_pwned_poke),
     SEP_COMMAND("jump", "jump to address", sep_pwned_jump),

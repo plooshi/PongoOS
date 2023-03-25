@@ -24,7 +24,7 @@
  * SOFTWARE.
  * 
  */
-void timer_init();
-void timer_rearm();
-void timer_disable();
-void timer_enable();
+void timer_init(void);
+void timer_rearm(void);
+void timer_disable(void);
+void timer_enable(void);

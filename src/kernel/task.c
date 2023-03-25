@@ -57,7 +57,7 @@ void task_suspend_self() {
 
 volatile uint32_t task_timer_ctr;
 extern uint32_t do_preempt, preemption_on;
-void task_timer_fired() {
+void task_timer_fired(void) {
     task_timer_ctr ++;
 }
 
@@ -208,7 +208,7 @@ retry:;
         iprintf(" | %7s (%d) | runcnt: %lld | irq: %d | irqcnt: %llu | flags: %s, %s\n", nm, t->pid, t->runcnt, i, t->irq_count, t->flags & TASK_PREEMPT ? "preempt" : "coop", t->flags & TASK_LINKED ? "run" : "wait");
     }
     iprintf("=+=   Loaded modules   ===\n");
-    extern void pongo_module_print_list();
+    extern void pongo_module_print_list(void);
     pongo_module_print_list();
     iprintf("=+========================\n");
     free(tasks_copy);
@@ -259,7 +259,7 @@ __attribute__((noinline)) void task_irq_dispatch(uint32_t intr) {
 
 extern struct task sched_task;
 extern uint32_t preempt_ctr;
-void task_yield_preemption() {
+void task_yield_preemption(void) {
     disable_interrupts();
     if (dis_int_count != 1) {
         panic("task yielded with interrupts held");
@@ -371,7 +371,7 @@ struct task* proc_create_task(struct proc* proc, void* entryp) {
     return task;
 }
 
-extern void task_entry_j(void(*entry)(), uint64_t stack, void (*retn)(), uint64_t cpsr);
+extern void task_entry_j(void(*entry)(void), uint64_t stack, void (*retn)(void), uint64_t cpsr);
 void task_fault_stack(struct task* task) {
     if (!task->user_stack) {
         uint64_t addr = 0;
@@ -385,7 +385,7 @@ void task_fault_stack(struct task* task) {
     }
 }
 int ct = 0;
-void task_entry() {
+void task_entry(void) {
     struct task* task = task_current();
     if (!task) panic("task_entry: no task");
     task_fault_stack(task);
@@ -396,12 +396,12 @@ void task_entry() {
     if (task->vm_space == &kernel_vm_space) {
         task->cpsr = 0x4; // EL1 SP0
 
-        void (*entry)() = (void*)task->entry;
+        void (*entry)(void) = (void*)task->entry;
         task_entry_j(entry, task->entry_stack, task_exit, task->cpsr);
     } else {
         task->cpsr = 0; // EL0
 
-        void (*entry)() = (void*)task->entry;
+        void (*entry)(void) = (void*)task->entry;
         task_entry_j(entry, task->entry_stack, 0, task->cpsr);
     }
 
@@ -411,7 +411,7 @@ volatile uint32_t gPid = 1;
 
 #define KERN_STACK_SIZE 0x8000
 
-void* kernel_stack_allocate_new() {
+void* kernel_stack_allocate_new(void) {
     uint64_t stack_size = KERN_STACK_SIZE + 2 * PAGE_SIZE;
     uint64_t phys_backing = alloc_phys(KERN_STACK_SIZE);
     uint64_t vma_backing = linear_kvm_alloc(stack_size);
@@ -427,7 +427,7 @@ void* kernel_stack_allocate_new() {
 
 void* stack_freelist = NULL;
 
-void* kernel_stack_allocate() {
+void* kernel_stack_allocate(void) {
     void* stack = NULL;
     disable_interrupts();
     if (stack_freelist) {
@@ -485,7 +485,7 @@ void task_restart_and_link(struct task* task) {
 }
 
 
-void task_register_unlinked(struct task* task, void (*entry)()) {
+void task_register_unlinked(struct task* task, void (*entry)(void)) {
     memset(task, 0, offsetof(struct task, anchor));
 
     if (task->proc) {
@@ -511,7 +511,7 @@ void task_register_unlinked(struct task* task, void (*entry)()) {
     enable_interrupts();
 }
 
-void task_register_irq(struct task* task, void (*entry)(), int irq_id) {
+void task_register_irq(struct task* task, void (*entry)(void), int irq_id) {
     disable_interrupts();
     task_register_unlinked(task, entry);
     task->flags |= TASK_IRQ_HANDLER;
@@ -520,7 +520,7 @@ void task_register_irq(struct task* task, void (*entry)(), int irq_id) {
     unmask_interrupt(irq_id);
     enable_interrupts();
 }
-void task_register_preempt_irq(struct task* task, void (*entry)(), int irq_id) {
+void task_register_preempt_irq(struct task* task, void (*entry)(void), int irq_id) {
     disable_interrupts();
     task_register_unlinked(task, entry);
     task->flags |= TASK_IRQ_HANDLER;
@@ -529,14 +529,14 @@ void task_register_preempt_irq(struct task* task, void (*entry)(), int irq_id) {
     unmask_interrupt(irq_id);
     enable_interrupts();
 }
-void task_register(struct task* task, void (*entry)()) {
+void task_register(struct task* task, void (*entry)(void)) {
     disable_interrupts();
     task_register_unlinked(task, entry);
     task->flags |= TASK_PREEMPT | TASK_CAN_EXIT;
     task_link(task);
     enable_interrupts();
 }
-void task_register_coop(struct task* task, void (*entry)()) {
+void task_register_coop(struct task* task, void (*entry)(void)) {
     disable_interrupts();
     task_register_unlinked(task, entry);
     task->flags &= ~TASK_PREEMPT;
@@ -545,7 +545,7 @@ void task_register_coop(struct task* task, void (*entry)()) {
     enable_interrupts();
 }
 
-struct task* task_create(const char* name, void (*entry)()) {
+struct task* task_create(const char* name, void (*entry)(void)) {
     struct task* task = malloc(sizeof(struct task));
     disable_interrupts();
     bzero((void*) task, sizeof(struct task));
@@ -555,7 +555,7 @@ struct task* task_create(const char* name, void (*entry)()) {
     enable_interrupts();
     return task;
 }
-struct task* task_create_extended(const char* name, void (*entry)(), int task_type, uint64_t arg) {
+struct task* task_create_extended(const char* name, void (*entry)(void), int task_type, uint64_t arg) {
     struct proc* proc = task_current()->proc;
     if (task_type & TASK_FROM_PROC) {
         proc = (struct proc*) arg;

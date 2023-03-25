@@ -69,7 +69,7 @@ void filedesc_release(struct filedesc* filetable);
 void file_reference(struct file* filetable);
 void file_release(struct file* filetable);
 
-struct file* file_create();
+struct file* file_create(void);
 struct filedesc* filedesc_create(struct file* file);
 struct filetable* filetable_create(uint32_t size);
 

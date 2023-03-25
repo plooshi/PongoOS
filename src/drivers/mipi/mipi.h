@@ -25,6 +25,6 @@
  * 
  */
 void mipi_send_cmd(uint32_t cmd);
-void mipi_init();
-void mipi_sleep();
-void mipi_wake();
+void mipi_init(void);
+void mipi_sleep(void);
+void mipi_wake(void);

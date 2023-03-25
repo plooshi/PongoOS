@@ -526,7 +526,7 @@ err_t vm_space_map_page_physical_prot(struct vm_space* vmspace, uint64_t vaddr, 
     return KERN_SUCCESS;
 }
 uint8_t asid_table[256/8];
-uint64_t asid_alloc() {
+uint64_t asid_alloc(void) {
     disable_interrupts();
     for (uint32_t i=0; i < 256; i++) {
         bool is_alloc = !!(asid_table[i>>3] & (1 << (i&0x7)));
@@ -779,7 +779,7 @@ void phys_dereference(uint64_t pa, uint64_t size) {
     enable_interrupts();
 }
 
-void alloc_init() {
+void alloc_init(void) {
     if (ppage_list) {
         return;
     }

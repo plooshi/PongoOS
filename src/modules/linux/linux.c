@@ -70,7 +70,7 @@ void linux_dtree_init(void)
     /* Alias */
     node = fdt_add_subnode(fdt, 0, "/aliases");
     char serials[64];
-    siprintf(serials, "/soc/serial@%llx", ((uint64_t)dt_get_u32_prop("uart0", "reg")) + gIOBase);
+    siprintf(serials, "/soc/serial@%llx", ((uint64_t)dt_get_u32("uart0", "reg", 0)) + gIOBase);
     fdt_appendprop_string(fdt, node, "serial0", serials);
 
     /* CPU */
@@ -117,7 +117,7 @@ void linux_dtree_init(void)
     fdt_appendprop(fdt, node, "ranges", "", 0);
 
     /* Interrupt controller: Apple AIC */
-    siprintf(fdt_nodename, "/interrupt-controller@%llx", (uint64_t)dt_get_u32_prop("aic", "reg") + gIOBase);
+    siprintf(fdt_nodename, "/interrupt-controller@%llx", (uint64_t)dt_get_u32("aic", "reg", 0) + gIOBase);
     node1 = fdt_add_subnode(fdt, node, fdt_nodename);
     fdt_appendprop_string(fdt, node1, "name", "interrupt_controller");
     fdt_appendprop_string(fdt, node1, "device_type", "interrupt_controller");
@@ -126,19 +126,19 @@ void linux_dtree_init(void)
     fdt_appendprop_cell(fdt, node1, "linux,phandle", 0x1);
     fdt_appendprop_cell(fdt, node1, "#interrupt-cells", 0x3);
     fdt_appendprop_addrrange(fdt, 0, node1, "reg",
-                             ((uint64_t)dt_get_u32_prop("aic", "reg")) + gIOBase,
+                             ((uint64_t)dt_get_u32("aic", "reg", 0)) + gIOBase,
                              0x8000);
     fdt_appendprop(fdt, node1, "interrupt-controller", "", 0);
 
     /* UART */
-    siprintf(fdt_nodename, "/serial@%llx", (uint64_t)dt_get_u32_prop("uart0", "reg") + gIOBase);
+    siprintf(fdt_nodename, "/serial@%llx", (uint64_t)dt_get_u32("uart0", "reg", 0) + gIOBase);
     node1 = fdt_add_subnode(fdt, node, fdt_nodename);
     fdt_appendprop_string(fdt, node1, "compatible", "hx,uart");
     fdt_appendprop_addrrange(fdt, 0, node1, "reg",
-                             ((uint64_t)dt_get_u32_prop("uart0", "reg")) + gIOBase,
+                             ((uint64_t)dt_get_u32("uart0", "reg", 0)) + gIOBase,
                              0x4000);
     fdt_appendprop_cell(fdt, node1, "interrupts", 0);
-    fdt_appendprop_cell(fdt, node1, "interrupts", dt_get_u32_prop("uart0", "interrupts"));
+    fdt_appendprop_cell(fdt, node1, "interrupts", dt_get_u32("uart0", "interrupts", 0));
     fdt_appendprop_cell(fdt, node1, "interrupts", 4);
     fdt_appendprop_cell(fdt, node1, "clocks", 2);
     fdt_appendprop_string(fdt, node1, "clock-names", "refclk");
@@ -172,7 +172,7 @@ void linux_dtree_late(void)
     fdt_appendprop(fdt, node, "ranges", "", 0);
 
     char cmdline[256];
-    siprintf(cmdline, "debug earlycon=hx_uart,0x%llx console=tty0 console=ttyHX0", ((uint64_t)dt_get_u32_prop("uart0", "reg")) + gIOBase);
+    siprintf(cmdline, "debug earlycon=hx_uart,0x%llx console=tty0 console=ttyHX0", ((uint64_t)dt_get_u32("uart0", "reg", 0)) + gIOBase);
     fdt_appendprop_string(fdt, node, "bootargs", cmdline);
 
     /* simplefb dart-apcie3*/
@@ -332,7 +332,7 @@ void linux_prep_boot()
 #define colormatrix_mul_32 (&disp[0x40d4 / 4])
 #define colormatrix_mul_33 (&disp[0x40dc / 4])
 
-    volatile uint32_t *disp = ((uint32_t *)(dt_get_u32_prop("disp0", "reg") + gIOBase));
+    volatile uint32_t *disp = ((uint32_t *)(dt_get_u32("disp0", "reg", 0) + gIOBase));
 
     *pixfmt0 = (*pixfmt0 & 0xF00FFFFFu) | 0x05200000u;
 

@@ -34,7 +34,7 @@ void* resolve_symbol(const char* name);
 
 void link_exports(struct pongo_exports* export);
 
-void modload_cmd() {
+void modload_cmd(void) {
         iprintf("[modload_macho:i] Attempting to load a module\n");
         if (loader_xfer_recv_count >= 0x4000) {
             //iprintf("enough bytes! %x\n", loader_xfer_recv_count);
@@ -178,7 +178,7 @@ void modload_cmd() {
 
                         module->name = strdup(modname ? *modname ? *modname : "<null>" : "<unknown>");
                         module->exports = exports;
-                        ((void (*)())entrypoint)();
+                        ((void (*)(void))entrypoint)();
                     } else puts ("[modload_macho:!] load module: truncated load");
                 } else puts("[modload_macho:!] load module: need dylib");
             } else puts("[modload_macho:!] load module: not mach-o");

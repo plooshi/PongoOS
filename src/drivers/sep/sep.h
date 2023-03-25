@@ -24,6 +24,6 @@
  * SOFTWARE.
  *
  */
-void sep_setup();
+void sep_setup(void);
 void sep_teardown(void);
 extern void (*sepfw_kpf_hook)(void* sepfw_bytes, size_t sepfw_size);

@@ -62,7 +62,7 @@ static uint64_t gAESClockAddr;
 
 void aes_a9_init(void)
 {
-    gAESBase = gIOBase + dt_get_u64_prop("aes", "reg");
+    gAESBase = gIOBase + dt_get_u64("aes", "reg", 0);
     gAESPipeBase = gAESBase + 0x200;
     switch(socnum)
     {

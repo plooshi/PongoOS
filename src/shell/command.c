@@ -137,7 +137,7 @@ static inline void put_serial_modifier(const char* str) {
     while (*str) serial_putc(*str++);
 }
 
-void command_main() {
+void command_main(void) {
     while (1) {
         if (!uart_should_drop_rx) {
             fflush(stdout);

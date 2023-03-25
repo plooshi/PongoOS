@@ -473,7 +473,7 @@ extern uint64_t linear_kvm_alloc(uint32_t size);
 extern void _command_register_internal(const char* name, const char* desc, void (*cb)(const char* cmd, char* args), bool hidden);
 static inline _Bool is_16k(void)
 {
-    return ((get_mmfr0(void) >> 20) & 0xf) == 0x1;
+    return ((get_mmfr0() >> 20) & 0xf) == 0x1;
 }
 static inline void flush_tlb(void)
 {

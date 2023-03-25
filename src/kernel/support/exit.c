@@ -26,7 +26,7 @@
  */
 #include <pongo.h>
 
-int _exit() {
+int _exit(void) {
    task_exit();
    return -1; // should never be reached, ever.
 }

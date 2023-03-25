@@ -24,7 +24,7 @@
  * SOFTWARE.
  * 
  */
-void gpio_init();
-void gpio_early_init();
+void gpio_init(void);
+void gpio_early_init(void);
 
 extern uint64_t gGpioBase;
