@@ -1133,7 +1133,7 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) 
     // 0xfffffff00692e6a8      080140f9       ldr x8, [x8]
     // 0xfffffff00692e6ac      1f0008eb       cmp x0, x8 <- cmp (patches to cmp x0, x0)
     // r2 cmd:
-    // /x 0000003908011b3200000039000000b9:000000ffffffffff000000ff000000ff
+    // /x 0000403908011b3200000039000000b9:0000c0bfffffffff0000c0bf000000ff
     uint64_t matches[] = {
         0x39400000, // ldr{b|h} w*, [x*]
         0x321b0108, // orr w8, w8, 0x20
@@ -1446,47 +1446,6 @@ bool kpf_amfi_mac_syscall_low(struct xnu_pf_patch *patch, uint32_t *opcode_strea
     return kpf_amfi_mac_syscall(patch, opcode_stream + 3 + sxt32(opcode_stream[3] >> 5, 19)); // uint32 takes care of << 2
 }
 
-// written in nano fr
-bool kpf_hash_agility1(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
-    uint32_t *b = find_next_insn(opcode_stream, 0x6, 0x14000000, 0xfc000000);
-        
-    if (!b) {
-        printf("kpf_amfi_hash_agility: branch not found!\n");
-        return false;
-    }
-
-    b[0] = NOP;
-
-    printf("KPF: found not best cdhash type\n");
-    return true;
-}
-
-bool kpf_hash_agility2(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
-    uint32_t *b = find_next_insn(opcode_stream, 0x4, 0x14000000, 0xfc000000);
-        
-    if (!b) {
-        printf("kpf_amfi_hash_agility: branch not found!\n");
-        return false;
-    }
-
-    b[0] = NOP;
-
-    printf("KPF: found not best code directory\n");
-    return true;
-}
-
-bool kpf_amfi_ploosh_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
-    const char *str = get_string(opcode_stream);
-    
-    if (strcmp(str, "AMFI: \'%s\': no hash agility data and first cd hash type (%d) does not match best cd hash type (%d).\n") == 0) {
-        return kpf_hash_agility1(patch, opcode_stream);
-    } else if (strcmp(str, "AMFI: \'%s\': first code directory doesn\'t match the best code directory, but no hash agility data") == 0) {
-        return kpf_hash_agility2(patch, opcode_stream);
-    } else {
-        return false;
-    }
-}
-
 void kpf_amfi_kext_patches(xnu_pf_patchset_t* patchset) {
     // this patch helps us find the return of the amfi function so that we can jump into shellcode from there and modify the cs flags
     // to do that we search for the sequence below also as an example from i7 13.3:
@@ -1670,16 +1629,6 @@ void kpf_amfi_kext_patches(xnu_pf_patchset_t* patchset) {
         0xff00001f,
     };
     xnu_pf_maskmatch(patchset, "amfi_mac_syscall_low", iiii_matches, iiii_masks, sizeof(iiii_matches)/sizeof(uint64_t), false, (void*)kpf_amfi_mac_syscall_low);
-
-    uint64_t plush_matches[] = {
-        0x90000000,
-        0x91000000,
-    };
-    uint64_t plush_masks[] = {
-        0x9f000000,
-        0xff800000,
-    };
-    xnu_pf_maskmatch(patchset, "ploosh_amfi_patches", plush_matches, plush_masks, sizeof(plush_matches)/sizeof(uint64_t), false, (void*)kpf_amfi_ploosh_callback);
 }
 
 void kpf_sandbox_kext_patches(xnu_pf_patchset_t* patchset) {
