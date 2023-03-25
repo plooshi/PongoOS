@@ -1394,16 +1394,6 @@ bool kpf_amfi_mac_syscall_low(struct xnu_pf_patch *patch, uint32_t *opcode_strea
     return kpf_amfi_mac_syscall(patch, opcode_stream + 3 + sxt32(opcode_stream[3] >> 5, 19)); // uint32 takes care of << 2
 }
 
-bool kpf_amfi_force_dev_mode(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
-    puts("KPF: found force_developer_mode");
-    
-    uint32_t *cbz = find_prev_insn(opcode_stream, 0x100, 0x34000000, 0xff000000);
-    
-    cbz[0] = 0x14000000 | (sxt32(cbz[0] >> 5, 19) & 0x03ffffff);
-    
-    return true;
-}
-
 // written in nano fr
 bool kpf_hash_agility1(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
     uint32_t *b = find_next_insn(opcode_stream, 0x6, 0x14000000, 0xfc000000);
@@ -1436,9 +1426,7 @@ bool kpf_hash_agility2(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
 bool kpf_amfi_ploosh_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
     const char *str = get_string(opcode_stream);
     
-    if (strcmp(str, "AMFI: developer mode is force enabled\n") == 0) {
-        return kpf_amfi_force_dev_mode(patch, opcode_stream);
-    } else if (strcmp(str, "AMFI: \'%s\': no hash agility data and first cd hash type (%d) does not match best cd hash type (%d).\n") == 0) {
+    if (strcmp(str, "AMFI: \'%s\': no hash agility data and first cd hash type (%d) does not match best cd hash type (%d).\n") == 0) {
         return kpf_hash_agility1(patch, opcode_stream);
     } else if (strcmp(str, "AMFI: \'%s\': first code directory doesn\'t match the best code directory, but no hash agility data") == 0) {
         return kpf_hash_agility2(patch, opcode_stream);
