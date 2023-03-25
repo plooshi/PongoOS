@@ -1066,7 +1066,10 @@ bool kpf_apfs_vfsop_mount(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
     return true;
 }
 
+bool handled_eval_rootauth = false;
 bool kpf_apfs_rootauth(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
+    handled_eval_rootauth = true;
+
     opcode_stream[0] = NOP;
     opcode_stream[1] = 0x52800000; /* mov w0, 0 */
 
@@ -1075,6 +1078,8 @@ bool kpf_apfs_rootauth(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
 }
 
 bool kpf_apfs_rootauth_new(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
+    handled_eval_rootauth = true;
+
     uint32_t orig_register = (opcode_stream[1] & 0x1f);
     opcode_stream[0] = NOP;
     opcode_stream[1] = 0x52800000 | orig_register; /* mov wN, 0 */
@@ -2584,6 +2589,7 @@ void command_kpf(const char *cmd, char *args)
     if (!vfs_context_current) panic("Missing patch: vfs_context_current");
     if (!rootvp_string_match && !kpf_has_done_mac_mount) panic("Missing patch: mac_mount");
     if (do_ramfile && !IOMemoryDescriptor_withAddress) panic("Missing patch: iomemdesc");
+    if ((rootvp_string_match != NULL) && !handled_eval_rootauth) panic("Missing patch: handle_eval_rootauth");
 
     uint32_t delta = (&shellcode_area[1]) - amfi_ret;
     delta &= 0x03ffffff;
