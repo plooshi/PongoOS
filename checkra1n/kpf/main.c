@@ -2251,6 +2251,7 @@ void command_kpf(const char *cmd, char *args)
 
     kpf_component_t* const kpf_components[] =
     {
+        &kpf_developer_mode,
         &kpf_dyld,
         &kpf_mach_port,
         &kpf_nvram,
@@ -2344,7 +2345,7 @@ void command_kpf(const char *cmd, char *args)
         kpf_component_t *component = kpf_components[i];
         if(component->init)
         {
-            component->init(text_cstring_range);
+            component->init(hdr, text_cstring_range);
         }
     }
 
