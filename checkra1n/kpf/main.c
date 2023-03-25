@@ -1230,7 +1230,7 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) 
     uint64_t personalized_matches[] = {
         0xf9400248, // ldr x8, [x{19/26}, *]
         0xf100011f, // cmp x8, 0
-        0x9a880204, // csel x0, x{19/26}, x8, eq
+        0x9a880240, // csel x0, x{19/26}, x8, eq
         0x00000000, // ignore
         0x00000094, // bl
         0xaa0003e0  // mov x*, x*
