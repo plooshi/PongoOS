@@ -44,9 +44,19 @@
 #include <mach-o/loader.h>
 #include <libkern/OSCacheControl.h>
 #include <TargetConditionals.h>
+#include <spawn.h>
+#include <assert.h>
+#include <signal.h>
+#include <limits.h>
+#include <sys/types.h>
+#include <mach-o/dyld.h>
 #if TARGET_OS_OSX
 #   include <pthread.h>
 #endif
+extern char** environ;
+int ptrace(int request, pid_t pid, caddr_t addr, int data);
+#define PT_TRACE_ME 0
+#define PT_DETACH 11
 
 #define SWAP32(x) (((x & 0xff000000) >> 24) | ((x & 0xff0000) >> 8) | ((x & 0xff00) << 8) | ((x & 0xff) << 24))
 
@@ -525,6 +535,30 @@ static int wait_for_child(child_t *children, size_t *num_bad, child_t **slot)
 
 int main(int argc, const char **argv)
 {
+#if TARGET_OS_IPHONE
+  if (argc == 3 && !strcmp(argv[2],"ENABLE-JIT-NOW")) {
+      int ret = ptrace(PT_TRACE_ME, 0, 0, 0);
+      return ret;
+  }
+  int pid;
+  const char* spawn_argv[] = {
+    argv[0],
+    "",
+    "ENABLE-JIT-NOW",
+    NULL
+  };
+  uint32_t bufsz = (uint32_t)PATH_MAX;
+  char exe_path[PATH_MAX];
+  int ret = _NSGetExecutablePath(exe_path, &bufsz);
+  if (ret == -1) assert(0);
+  ret = posix_spawnp(&pid, exe_path, NULL, NULL, (char**)spawn_argv, environ);
+  if (ret == 0) {
+    waitpid(pid, NULL, WUNTRACED);
+    ptrace(PT_DETACH, pid, NULL, 0);
+    kill(pid, SIGTERM);
+    wait(NULL);
+  }
+#endif
     int aoff = 1;
     for(; aoff < argc; ++aoff)
     {

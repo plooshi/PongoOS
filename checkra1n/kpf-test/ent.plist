@@ -4,5 +4,9 @@
 <dict>
     <key>com.apple.private.security.no-container</key>
     <true/>
+    <key>platform-application</key>
+    <true/>
+    <key>get-task-allow</key>
+    <true/>
 </dict>
 </plist>
