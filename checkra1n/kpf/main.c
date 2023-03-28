@@ -1224,30 +1224,27 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) 
     // the kernel will panic when it cannot authenticate the personalized root hash
     // so we force it to succeed
     // insn 4 can be either an immediate or register mov, so we ignore it
-    // example from iPad 6 15.1:
-    // 0xfffffff006635330      489f40f9       ldr x8, [x26, 0x138] ; 0xf4 ; 244
-    // 0xfffffff006635334      1f0100f1       cmp x8, 0
-    // 0xfffffff006635338      4003889a       csel x0, x26, x8, eq
-    // 0xfffffff00663533c      01008052       mov w1, 0
-    // 0xfffffff006635340      80060094       bl 0xfffffff006636d40
-    // 0xfffffff006635344      e0031aaa       mov x0, x26
-    // r2: /x 480240f91f0100f14002889a0000000000000094e00300aa:df02c0ffffffffffdffeffff00000000000000fce0ffe0ff
+    // example from iPhone X 15.5b4:
+    // 0xfffffff008db82d0      9ee6bd97       bl 0xfffffff007d31d48
+    // 0xfffffff008db82d4      e0067036       tbz w0, 0xe, 0xfffffff008db83b0
+    // 0xfffffff008db82d8      889f40f9       ldr x8, [x28, 0x138] ; 0xf6 ; 246
+    // 0xfffffff008db82dc      1f0100f1       cmp x8, 0
+    // 0xfffffff008db82e0      8003889a       csel x0, x28, x8, eq
+    // r2: /x 0000009400007036080240f91f0100f10002889a:000000fc1f00f1ff1f02c0ffffffffff0ffeffff
     uint64_t personalized_matches[] = {
-        0xf9400248, // ldr x8, [x{19/26}, *]
-        0xf100011f, // cmp x8, 0
-        0x9a880240, // csel x0, x{19/26}, x8, eq
-        0x00000000, // ignore
         0x94000000, // bl
-        0xaa0003e0  // mov x*, x*
+        0x36700000, // tbz w0, 0xe, *
+        0xf9400280, // ldr x8, [x{16-31}, *]
+        0xf100011f, // cmp x8, 0
+        0x9a880200, // csel x0, x{16-31}, x8, eq
     };
 
     uint64_t personalized_masks[] = {
+        0xfc000000,
+        0xfff1001f,
         0xffc002df,
         0xffffffff,
-        0xfffffedf,
-        0x00000000,
-        0xfc000000,
-        0xffe0ffe0
+        0xffc0021f
     };
     
     
