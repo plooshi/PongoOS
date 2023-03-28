@@ -1234,7 +1234,7 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) 
     uint64_t personalized_matches[] = {
         0x94000000, // bl
         0x36700000, // tbz w0, 0xe, *
-        0xf9400280, // ldr x8, [x{16-31}, *]
+        0xf9400208, // ldr x8, [x{16-31}, *]
         0xf100011f, // cmp x8, 0
         0x9a880200, // csel x0, x{16-31}, x8, eq
     };
@@ -1242,9 +1242,9 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) 
     uint64_t personalized_masks[] = {
         0xfc000000,
         0xfff1001f,
-        0xffc002df,
+        0xffc0021f,
         0xffffffff,
-        0xffc0021f
+        0xfffffe1f
     };
     
     
