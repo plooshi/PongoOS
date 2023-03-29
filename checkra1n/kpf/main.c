@@ -1118,7 +1118,7 @@ bool kpf_apfs_rootauth_new(struct xnu_pf_patch *patch, uint32_t *opcode_stream) 
     return true;
 }
 
-void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union) {
+void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool have_rootful) {
     // there is a check in the apfs mount function that makes sure that the kernel task is calling this function (current_task() == kernel_task)
     // we also want to call it so we patch that check out
     // example from i7 13.3:
@@ -1177,134 +1177,137 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union) {
         xnu_pf_maskmatch(patchset, "apfs_patch_rename", i_matches, i_masks, sizeof(i_matches)/sizeof(uint64_t), true, (void*)kpf_apfs_patches_rename);
     }
 
-    // this patch makes root hash authentication not required
-    // example from iPad 6 15.7.1:
-    // 0xfffffff00660e25c      88a600b0       adrp x8, 0xfffffff007adf000
-    // 0xfffffff00660e260      08614439       ldrb w8, [x8, 0x118] ; 0xe2 ; 226
-    // 0xfffffff00660e264      e8001836       tbz w8, 3, 0xfffffff00660e280
-    // r2: /x 000000900000403900001836:0000009f0000c0ff0000f8fe
-    uint64_t auth_matches[] = {
-        0x90000000, // adrp x*, *
-        0x39400000, // ldrb w*, [x*, *]
-        0x36180000  // tb(n)z w*, 3, *
-    };
-
-    uint64_t auth_masks[] = {
-        0x9f000000,
-        0xffc00000,
-        0xfef80000
-    };
-
-    xnu_pf_maskmatch(patchset, "root_auth_required", auth_matches, auth_masks, sizeof(auth_matches)/sizeof(uint64_t), !have_union, (void*)kpf_apfs_auth_required);
-
-    // the kernel will panic when the volume seal is broken
-    // so we nop out the tbnz so it doesnt panic
-    // example from iPhone 8 16.4 RC:
-    // 0xfffffff006174658      606a41f9       ldr x0, [x19, 0x2d0] ; 0xed ; 237
-    // 0xfffffff00617465c      600000b4       cbz x0, 0xfffffff006174668
-    // 0xfffffff006174660      4ef70394       bl 0xfffffff006272398
-    // 0xfffffff006174664      00017037       tbnz w0, 0xe, 0xfffffff006174684
-    // 0xfffffff006174668      20008052       mov w0, 1
-    // r2: /x 600240f9600000b4000000940000703720008052:ff03c0ffffffffff000000fc1f00f8ffffffffff
-    uint64_t seal_matches[] = {
-        0xf9400260, // ldr x0, [x19, *]
-        0xb4000060, // cbz x0, 0xc
-        0x94000000, // bl
-        0x37700000, // tbnz w0, 0xe, *
-        0x52800020  // mov w0, 1 
-    };
-
-    uint64_t seal_masks[] = {
-        0xffc003ff,
-        0xffffffff,
-        0xfc000000,
-        0xfff8001f,
-        0xffffffff
-    };
-
-    xnu_pf_maskmatch(patchset, "root_seal_broken", seal_matches, seal_masks, sizeof(seal_matches)/sizeof(uint64_t), !have_union, (void*)kpf_apfs_seal_broken);
-
-    // the kernel will panic when it cannot authenticate the personalized root hash
-    // so we force it to succeed
-    // insn 4 can be either an immediate or register mov
-    // example from iPhone X 15.5b4:
-    // 0xfffffff008db82d8      889f40f9       ldr x8, [x28, 0x138] ; 0xf6 ; 246
-    // 0xfffffff008db82dc      1f0100f1       cmp x8, 0
-    // 0xfffffff008db82e0      8003889a       csel x0, x28, x8, eq
-    // 0xfffffff008db82e4      01008052       mov w1, 0
-    // r2: /x 080240f91f0100f10002889a01008052:1f02c0ffffffffff1ffeffffffffffff
-    uint64_t personalized_matches[] = {
-        0xf9400208, // ldr x8, [x{16-31}, *]
-        0xf100011f, // cmp x8, 0
-        0x9a880200, // csel x0, x{16-31}, x8, eq
-        0x52800001, // mov w1, 0
-    };
-
-    uint64_t personalized_masks[] = {
-        0xffc0021f,
-        0xffffffff,
-        0xfffffe1f,
-        0xffffffff
-    };
-    
-    xnu_pf_maskmatch(patchset, "personalized_hash", personalized_matches, personalized_masks, sizeof(personalized_matches)/sizeof(uint64_t), false, (void*)kpf_personalized_root_hash);
-    
-    // other mov
-    // r2: /x 080240f91f0100f10002889ae10300aa:1f02c0ffffffffff1ffeffffffffe0ff
-    personalized_matches[3] = 0xaa0003e1;
-    personalized_masks[3] = 0xffe0ffff;
-    
-    xnu_pf_maskmatch(patchset, "personalized_hash", personalized_matches, personalized_masks, sizeof(personalized_matches)/sizeof(uint64_t), false, (void*)kpf_personalized_root_hash);
-    
-    // when mounting an apfs volume, there is a check to make sure the volume is not read/write
-    // we just nop the check out
-    // example from iPad 6 16.1.1:
-    // 0xfffffff0064023a4      a00b7037       tbnz w0, 0xe, 0xfffffff006402518
-    // 0xfffffff0064023a8      e8b340b9       ldr w8, [sp, 0xb0]  ; 5
-    // 0xfffffff0064023ac      08791f12       and w8, w8, 0xfffffffe
-    // 0xfffffff0064023b0      e8b300b9       str w8, [sp, 0xb0]
-    // r2: /x 00007037a00340b900781f12a00300b9:1f00f8ffa003feff00fcffffa003c0ff
-    uint64_t remount_matches[] = {
-        0x37700000, // tbnz w0, 0xe, *
-        0xb94003a0, // ldr x*, [x29/sp, *]
-        0x121f7800, // and w*, w*, 0xfffffffe
-        0xb90003a0, // str x*, [x29/sp, *]
-    };
-
-    uint64_t remount_masks[] = {
-        0xfff8001f,
-        0xfffe03a0,
-        0xfffffc00,
-        0xffc003a0,
-    };
-
-    xnu_pf_maskmatch(patchset, "apfs_vfsop_mount", remount_matches, remount_masks, sizeof(remount_masks) / sizeof(uint64_t), !have_union, (void *)kpf_apfs_vfsop_mount);
-    
-    // r2: /x 68002837000a8052c0035fd6
-    uint64_t rootauth_matches[] = {
-        0x37280068, // tbnz w8, 5, 0xc
-        0x52800a00, // mov w0, 0x50
-        RET         // ret
-    };
-    uint64_t rootauth_masks[] = {
-        0xffffffff,
-        0xffffffff,
-        0xffffffff
-    };
-    xnu_pf_maskmatch(patchset, "handle_eval_rootauth", rootauth_matches, rootauth_masks, sizeof(rootauth_masks) / sizeof(uint64_t), false, (void *)kpf_apfs_rootauth);
+    if(have_rootful)
+    {
+        // this patch makes root hash authentication not required
+        // example from iPad 6 15.7.1:
+        // 0xfffffff00660e25c      88a600b0       adrp x8, 0xfffffff007adf000
+        // 0xfffffff00660e260      08614439       ldrb w8, [x8, 0x118] ; 0xe2 ; 226
+        // 0xfffffff00660e264      e8001836       tbz w8, 3, 0xfffffff00660e280
+        // r2: /x 000000900000403900001836:0000009f0000c0ff0000f8fe
+        uint64_t auth_matches[] = {
+            0x90000000, // adrp x*, *
+            0x39400000, // ldrb w*, [x*, *]
+            0x36180000  // tb(n)z w*, 3, *
+        };
         
-    // r2: /x 68002837000a805200000014:ffffffffe0ffffff000000fc
-    uint64_t rootauth_matches2[] = {
-        0x37280068, // tbnz w8, 5, 0xc
-        0x52800a00, // mov wN, 0x50
-        0x14000000  // b
-    };
-    uint64_t rootauth_masks2[] = {
-        0xffffffff,
-        0xffffffe0,
-        0xfc000000
-    };
-    xnu_pf_maskmatch(patchset, "handle_eval_rootauth", rootauth_matches2, rootauth_masks2, sizeof(rootauth_masks2) / sizeof(uint64_t), false, (void *)kpf_apfs_rootauth_new);
+        uint64_t auth_masks[] = {
+            0x9f000000,
+            0xffc00000,
+            0xfef80000
+        };
+        
+        xnu_pf_maskmatch(patchset, "root_auth_required", auth_matches, auth_masks, sizeof(auth_matches)/sizeof(uint64_t), !have_union, (void*)kpf_apfs_auth_required);
+        
+        // the kernel will panic when the volume seal is broken
+        // so we nop out the tbnz so it doesnt panic
+        // example from iPhone 8 16.4 RC:
+        // 0xfffffff006174658      606a41f9       ldr x0, [x19, 0x2d0] ; 0xed ; 237
+        // 0xfffffff00617465c      600000b4       cbz x0, 0xfffffff006174668
+        // 0xfffffff006174660      4ef70394       bl 0xfffffff006272398
+        // 0xfffffff006174664      00017037       tbnz w0, 0xe, 0xfffffff006174684
+        // 0xfffffff006174668      20008052       mov w0, 1
+        // r2: /x 600240f9600000b4000000940000703720008052:ff03c0ffffffffff000000fc1f00f8ffffffffff
+        uint64_t seal_matches[] = {
+            0xf9400260, // ldr x0, [x19, *]
+            0xb4000060, // cbz x0, 0xc
+            0x94000000, // bl
+            0x37700000, // tbnz w0, 0xe, *
+            0x52800020  // mov w0, 1 
+        };
+        
+        uint64_t seal_masks[] = {
+            0xffc003ff,
+            0xffffffff,
+            0xfc000000,
+            0xfff8001f,
+            0xffffffff
+        };
+        
+        xnu_pf_maskmatch(patchset, "root_seal_broken", seal_matches, seal_masks, sizeof(seal_matches)/sizeof(uint64_t), !have_union, (void*)kpf_apfs_seal_broken);
+        
+        // the kernel will panic when it cannot authenticate the personalized root hash
+        // so we force it to succeed
+        // insn 4 can be either an immediate or register mov
+        // example from iPhone X 15.5b4:
+        // 0xfffffff008db82d8      889f40f9       ldr x8, [x28, 0x138] ; 0xf6 ; 246
+        // 0xfffffff008db82dc      1f0100f1       cmp x8, 0
+        // 0xfffffff008db82e0      8003889a       csel x0, x28, x8, eq
+        // 0xfffffff008db82e4      01008052       mov w1, 0
+        // r2: /x 080240f91f0100f10002889a01008052:1f02c0ffffffffff1ffeffffffffffff
+        uint64_t personalized_matches[] = {
+            0xf9400208, // ldr x8, [x{16-31}, *]
+            0xf100011f, // cmp x8, 0
+            0x9a880200, // csel x0, x{16-31}, x8, eq
+            0x52800001, // mov w1, 0
+        };
+        
+        uint64_t personalized_masks[] = {
+            0xffc0021f,
+            0xffffffff,
+            0xfffffe1f,
+            0xffffffff
+        };
+        
+        xnu_pf_maskmatch(patchset, "personalized_hash", personalized_matches, personalized_masks, sizeof(personalized_matches)/sizeof(uint64_t), false, (void*)kpf_personalized_root_hash);
+        
+        // other mov
+        // r2: /x 080240f91f0100f10002889ae10300aa:1f02c0ffffffffff1ffeffffffffe0ff
+        personalized_matches[3] = 0xaa0003e1;
+        personalized_masks[3] = 0xffe0ffff;
+        
+        xnu_pf_maskmatch(patchset, "personalized_hash", personalized_matches, personalized_masks, sizeof(personalized_matches)/sizeof(uint64_t), false, (void*)kpf_personalized_root_hash);
+        
+        // when mounting an apfs volume, there is a check to make sure the volume is not read/write
+        // we just nop the check out
+        // example from iPad 6 16.1.1:
+        // 0xfffffff0064023a4      a00b7037       tbnz w0, 0xe, 0xfffffff006402518
+        // 0xfffffff0064023a8      e8b340b9       ldr w8, [sp, 0xb0]  ; 5
+        // 0xfffffff0064023ac      08791f12       and w8, w8, 0xfffffffe
+        // 0xfffffff0064023b0      e8b300b9       str w8, [sp, 0xb0]
+        // r2: /x 00007037a00340b900781f12a00300b9:1f00f8ffa003feff00fcffffa003c0ff
+        uint64_t remount_matches[] = {
+            0x37700000, // tbnz w0, 0xe, *
+            0xb94003a0, // ldr x*, [x29/sp, *]
+            0x121f7800, // and w*, w*, 0xfffffffe
+            0xb90003a0, // str x*, [x29/sp, *]
+        };
+        
+        uint64_t remount_masks[] = {
+            0xfff8001f,
+            0xfffe03a0,
+            0xfffffc00,
+            0xffc003a0,
+        };
+        
+        xnu_pf_maskmatch(patchset, "apfs_vfsop_mount", remount_matches, remount_masks, sizeof(remount_masks) / sizeof(uint64_t), !have_union, (void *)kpf_apfs_vfsop_mount);
+        
+        // r2: /x 68002837000a8052c0035fd6
+        uint64_t rootauth_matches[] = {
+            0x37280068, // tbnz w8, 5, 0xc
+            0x52800a00, // mov w0, 0x50
+            RET         // ret
+        };
+        uint64_t rootauth_masks[] = {
+            0xffffffff,
+            0xffffffff,
+            0xffffffff
+        };
+        xnu_pf_maskmatch(patchset, "handle_eval_rootauth", rootauth_matches, rootauth_masks, sizeof(rootauth_masks) / sizeof(uint64_t), false, (void *)kpf_apfs_rootauth);
+        
+        // r2: /x 68002837000a805200000014:ffffffffe0ffffff000000fc
+        uint64_t rootauth_matches2[] = {
+            0x37280068, // tbnz w8, 5, 0xc
+            0x52800a00, // mov wN, 0x50
+            0x14000000  // b
+        };
+        uint64_t rootauth_masks2[] = {
+            0xffffffff,
+            0xffffffe0,
+            0xfc000000
+        };
+        xnu_pf_maskmatch(patchset, "handle_eval_rootauth", rootauth_matches2, rootauth_masks2, sizeof(rootauth_masks2) / sizeof(uint64_t), false, (void *)kpf_apfs_rootauth_new);
+    }
 }
 static uint32_t* amfi_ret;
 bool kpf_amfi_execve_tail(struct xnu_pf_patch* patch, uint32_t* opcode_stream) {
@@ -2399,11 +2402,14 @@ void command_kpf(const char *cmd, char *args)
         }
     }
 
-    kpf_apfs_patches(apfs_patchset, rootvp_string_match == NULL);
-
-    if(livefs_string_match)
+    kpf_apfs_patches(apfs_patchset, rootvp_string_match == NULL, checkrain_option_enabled(palera1n_flags, palerain_option_rootful));
+    
+    if(checkrain_option_enabled(palera1n_flags, palerain_option_rootful))
     {
-        kpf_root_livefs_patch(apfs_patchset);
+        if(livefs_string_match)
+        {
+            kpf_root_livefs_patch(apfs_patchset);
+        }
     }
 
     xnu_pf_emit(apfs_patchset);
