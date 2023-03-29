@@ -1115,7 +1115,7 @@ bool kpf_apfs_rootauth_new(struct xnu_pf_patch *patch, uint32_t *opcode_stream) 
     return true;
 }
 
-void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) {
+void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union) {
     // there is a check in the apfs mount function that makes sure that the kernel task is calling this function (current_task() == kernel_task)
     // we also want to call it so we patch that check out
     // example from i7 13.3:
@@ -1223,30 +1223,33 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool ios16) 
 
     // the kernel will panic when it cannot authenticate the personalized root hash
     // so we force it to succeed
-    // insn 4 can be either an immediate or register mov, so we ignore it
+    // insn 4 can be either an immediate or register mov
     // example from iPhone X 15.5b4:
-    // 0xfffffff008db82d0      9ee6bd97       bl 0xfffffff007d31d48
-    // 0xfffffff008db82d4      e0067036       tbz w0, 0xe, 0xfffffff008db83b0
     // 0xfffffff008db82d8      889f40f9       ldr x8, [x28, 0x138] ; 0xf6 ; 246
     // 0xfffffff008db82dc      1f0100f1       cmp x8, 0
     // 0xfffffff008db82e0      8003889a       csel x0, x28, x8, eq
-    // r2: /x 0000009400007036080240f91f0100f10002889a:000000fc1f00f1ff1f02c0ffffffffff0ffeffff
+    // 0xfffffff008db82e4      01008052       mov w1, 0
+    // r2: /x 080240f91f0100f10002889a01008052:1f02c0ffffffffff1ffeffffffffffff
     uint64_t personalized_matches[] = {
-        0x94000000, // bl
-        0x36700000, // tbz w0, 0xe, *
         0xf9400208, // ldr x8, [x{16-31}, *]
         0xf100011f, // cmp x8, 0
         0x9a880200, // csel x0, x{16-31}, x8, eq
+        0x52800001, // mov w1, 0
     };
 
     uint64_t personalized_masks[] = {
-        0xfc000000,
-        0xfff1001f,
         0xffc0021f,
         0xffffffff,
-        0xfffffe1f
+        0xfffffe1f,
+        0xffffffff
     };
     
+    xnu_pf_maskmatch(patchset, "personalized_hash", personalized_matches, personalized_masks, sizeof(personalized_matches)/sizeof(uint64_t), !have_union, (void*)kpf_personalized_root_hash);
+    
+    // other mov
+    // r2: /x 080240f91f0100f10002889ae10300aa:1f02c0ffffffffff1ffeffffffffe0ff
+    personalized_matches[3] = 0xaa0003e1;
+    personalized_masks[3] = 0xffe0ffff;
     
     xnu_pf_maskmatch(patchset, "personalized_hash", personalized_matches, personalized_masks, sizeof(personalized_matches)/sizeof(uint64_t), !have_union, (void*)kpf_personalized_root_hash);
     
@@ -2393,7 +2396,7 @@ void command_kpf(const char *cmd, char *args)
         }
     }
 
-    kpf_apfs_patches(apfs_patchset, rootvp_string_match == NULL, cryptex_string_match != NULL);
+    kpf_apfs_patches(apfs_patchset, rootvp_string_match == NULL);
 
     if(livefs_string_match)
     {
