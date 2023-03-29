@@ -271,6 +271,10 @@ void kpf_mac_mount_patch(xnu_pf_patchset_t* xnu_text_exec_patchset) {
     xnu_pf_maskmatch(xnu_text_exec_patchset, "mac_mount_patch1", matches, masks, sizeof(matches)/sizeof(uint64_t), false, (void*)kpf_mac_mount_callback);
     matches[0] = 0x5283ffc9; // movz w9, 0x1ffe
     xnu_pf_maskmatch(xnu_text_exec_patchset, "mac_mount_patch2", matches, masks, sizeof(matches)/sizeof(uint64_t), false, (void*)kpf_mac_mount_callback);
+    
+    // 16.4 seems to have changed that
+    matches[0] = 0x9283ffc9; // mov x9, #-0x1fff
+    xnu_pf_maskmatch(xnu_text_exec_patchset, "mac_mount_patch2", matches, masks, sizeof(matches)/sizeof(uint64_t), false, (void*)kpf_mac_mount_callback);
 }
 
 bool dounmount_found;
@@ -1213,7 +1217,7 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool have_ro
             0xb4000060, // cbz x0, 0xc
             0x94000000, // bl
             0x37700000, // tbnz w0, 0xe, *
-            0x52800020  // mov w0, 1 
+            0x52800020  // mov w0, 1
         };
         
         uint64_t seal_masks[] = {
