@@ -271,8 +271,8 @@ void kpf_mac_mount_patch(xnu_pf_patchset_t* xnu_text_exec_patchset) {
     xnu_pf_maskmatch(xnu_text_exec_patchset, "mac_mount_patch1", matches, masks, sizeof(matches)/sizeof(uint64_t), false, (void*)kpf_mac_mount_callback);
     
     // ios 16.4 changed the codegen, so we match both
-    matches[0] = 0x5283ffc1; // movz w/x9, 0x1ffe/-0x1fff
-    masks[0] = 0xfffffff3;
+    matches[0] = 0x1283ffc9; // movz w/x9, 0x1ffe/-0x1fff
+    masks[0] = 0x3fffffff;
     xnu_pf_maskmatch(xnu_text_exec_patchset, "mac_mount_patch2", matches, masks, sizeof(matches)/sizeof(uint64_t), false, (void*)kpf_mac_mount_callback);
  }
 
