@@ -2551,9 +2551,12 @@ void command_kpf(const char *cmd, char *args)
     if (!vfs_context_current) panic("Missing patch: vfs_context_current");
     if (!rootvp_string_match && !kpf_has_done_mac_mount) panic("Missing patch: mac_mount");
     if (do_ramfile && !IOMemoryDescriptor_withAddress) panic("Missing patch: iomemdesc");
-    if ((rootvp_string_match != NULL) && !handled_eval_rootauth) panic("Missing patch: handle_eval_rootauth");
-    if ((rootvp_string_match != NULL) && !personalized_hash_patched) panic("Missing patch: personalized_root_hash");
-
+    
+    if(checkrain_option_enabled(palera1n_flags, palerain_option_rootful))
+    {
+        if ((rootvp_string_match != NULL) && !handled_eval_rootauth) panic("Missing patch: handle_eval_rootauth");
+        if ((rootvp_string_match != NULL) && !personalized_hash_patched) panic("Missing patch: personalized_root_hash");
+    }
     uint32_t delta = (&shellcode_area[1]) - amfi_ret;
     delta &= 0x03ffffff;
     delta |= 0x14000000;
