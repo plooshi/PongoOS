@@ -170,7 +170,7 @@ extern uint32_t kdi_shc[], kdi_shc_orig[], kdi_shc_get[], kdi_shc_addr[], kdi_sh
 extern uint32_t fsctl_shc[], fsctl_shc_vnode_open[], fsctl_shc_stolen_slowpath[], fsctl_shc_orig_bl[], fsctl_shc_vnode_close[], fsctl_shc_stolen_fastpath[], fsctl_shc_orig_b[], fsctl_shc_end[];
 extern uint32_t vnode_check_open_shc[], vnode_check_open_shc_ptr[], vnode_check_open_shc_end[];
 
-bool kpf_has_done_mac_mount;
+bool kpf_has_done_mac_mount = false;
 bool kpf_mac_mount_callback(struct xnu_pf_patch* patch, uint32_t* opcode_stream) {
     puts("KPF: Found mac_mount");
     uint32_t* mac_mount = &opcode_stream[0];
@@ -269,13 +269,12 @@ void kpf_mac_mount_patch(xnu_pf_patchset_t* xnu_text_exec_patchset) {
         0xFFFFFFFF,
     };
     xnu_pf_maskmatch(xnu_text_exec_patchset, "mac_mount_patch1", matches, masks, sizeof(matches)/sizeof(uint64_t), false, (void*)kpf_mac_mount_callback);
-    matches[0] = 0x5283ffc9; // movz w9, 0x1ffe
-    xnu_pf_maskmatch(xnu_text_exec_patchset, "mac_mount_patch2", matches, masks, sizeof(matches)/sizeof(uint64_t), false, (void*)kpf_mac_mount_callback);
     
-    // 16.4 seems to have changed that
-    matches[0] = 0x9283ffc9; // mov x9, #-0x1fff
+    // ios 16.4 changed the codegen, so we match both
+    matches[0] = 0x5283ffc1; // movz w/x9, 0x1ffe/-0x1fff
+    masks[0] = 0xfffffff3;
     xnu_pf_maskmatch(xnu_text_exec_patchset, "mac_mount_patch2", matches, masks, sizeof(matches)/sizeof(uint64_t), false, (void*)kpf_mac_mount_callback);
-}
+ }
 
 bool dounmount_found;
 bool kpf_mac_dounmount_callback(struct xnu_pf_patch* patch, uint32_t* opcode_stream) {
