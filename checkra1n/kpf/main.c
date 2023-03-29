@@ -971,6 +971,7 @@ bool kpf_apfs_seal_broken(struct xnu_pf_patch* patch, uint32_t* opcode_stream) {
     return true;
 }
 
+bool personalized_hash_patched = false;
 bool kpf_personalized_root_hash(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
     // ios 16.4 broke this a lot, so we're just gonna find the string and do stuff with that
     printf("KPF: found kpf_apfs_personalized_hash\n");
@@ -1034,6 +1035,8 @@ bool kpf_personalized_root_hash(struct xnu_pf_patch *patch, uint32_t *opcode_str
     DEVLOG("branch is 0x%x (BE)", branch_success);
 
     fail_stream[0] = branch_success;
+    
+    personalized_hash_patched = true;
 
     return true;
 }
@@ -1244,14 +1247,14 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union) {
         0xffffffff
     };
     
-    xnu_pf_maskmatch(patchset, "personalized_hash", personalized_matches, personalized_masks, sizeof(personalized_matches)/sizeof(uint64_t), !have_union, (void*)kpf_personalized_root_hash);
+    xnu_pf_maskmatch(patchset, "personalized_hash", personalized_matches, personalized_masks, sizeof(personalized_matches)/sizeof(uint64_t), false, (void*)kpf_personalized_root_hash);
     
     // other mov
     // r2: /x 080240f91f0100f10002889ae10300aa:1f02c0ffffffffff1ffeffffffffe0ff
     personalized_matches[3] = 0xaa0003e1;
     personalized_masks[3] = 0xffe0ffff;
     
-    xnu_pf_maskmatch(patchset, "personalized_hash", personalized_matches, personalized_masks, sizeof(personalized_matches)/sizeof(uint64_t), !have_union, (void*)kpf_personalized_root_hash);
+    xnu_pf_maskmatch(patchset, "personalized_hash", personalized_matches, personalized_masks, sizeof(personalized_matches)/sizeof(uint64_t), false, (void*)kpf_personalized_root_hash);
     
     // when mounting an apfs volume, there is a check to make sure the volume is not read/write
     // we just nop the check out
@@ -2539,6 +2542,7 @@ void command_kpf(const char *cmd, char *args)
     if (!rootvp_string_match && !kpf_has_done_mac_mount) panic("Missing patch: mac_mount");
     if (do_ramfile && !IOMemoryDescriptor_withAddress) panic("Missing patch: iomemdesc");
     if ((rootvp_string_match != NULL) && !handled_eval_rootauth) panic("Missing patch: handle_eval_rootauth");
+    if ((rootvp_string_match != NULL) && !personalized_hash_patched) panic("Missing patch: personalized_root_hash");
 
     uint32_t delta = (&shellcode_area[1]) - amfi_ret;
     delta &= 0x03ffffff;
