@@ -262,6 +262,7 @@ void kpf_mac_mount_patch(xnu_pf_patchset_t* xnu_text_exec_patchset) {
     // After that we search for a ldrb w8, [x8, 0x71] and replace it with a movz x8, 0
     // at 0x70 there are the flags and MNT_ROOTFS is 0x00004000 -> 0x4000 >> 8 -> 0x40 -> bit 6 -> the check is right below
     // that way we can also perform operations on the rootfs
+    // r2: /x e92f1f32
     uint64_t matches[] = {
         0x321f2fe9, // orr w9, wzr, 0x1ffe
     };
@@ -271,6 +272,7 @@ void kpf_mac_mount_patch(xnu_pf_patchset_t* xnu_text_exec_patchset) {
     xnu_pf_maskmatch(xnu_text_exec_patchset, "mac_mount_patch1", matches, masks, sizeof(matches)/sizeof(uint64_t), false, (void*)kpf_mac_mount_callback);
     
     // ios 16.4 changed the codegen, so we match both
+    // r2: /x c9ff8312:ffffff3f
     matches[0] = 0x1283ffc9; // movz w/x9, 0x1ffe/-0x1fff
     masks[0] = 0x3fffffff;
     xnu_pf_maskmatch(xnu_text_exec_patchset, "mac_mount_patch2", matches, masks, sizeof(matches)/sizeof(uint64_t), false, (void*)kpf_mac_mount_callback);
