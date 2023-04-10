@@ -2822,6 +2822,9 @@ void command_kpf(const char *cmd, char *args)
         if (rootdev[0] == 0 && partid != 0) {
             if (constraints_string_match != NULL) snprintf(pinfo->rootdev, 0x10, "disk1s%u", partid);
             else snprintf(pinfo->rootdev, 0x10, "disk0s1s%u", partid);
+        } else {
+            if (constraints_string_match != NULL) snprintf(pinfo->rootdev, 0x10, "disk1s1");
+            else snprintf(pinfo->rootdev, 0x10, "disk0s1s1");
         }
         pinfo->version = 1;
         pinfo->flags = palera1n_flags;
