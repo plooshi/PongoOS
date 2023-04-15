@@ -59,6 +59,12 @@
 #define palerain_option_jbinit_log_to_file   (1 << 1) /* log to /cores/jbinit.log */
 #define palerain_option_setup_rootful        (1 << 2) /* create fakefs */
 #define palerain_option_setup_rootful_forced (1 << 3) /* create fakefs over an existing one */
+#define palerain_option_setup_partial_root   (1 << 4) /* fakefs creating should be partial */
+#define palerain_option_checkrain_is_clone   (1 << 5) /* supplied checkra1n is checkra1n clone */
+#define palerain_option_rootless_livefs      (1 << 6) /* mount root livefs on rootless */
+#define palerain_option_no_ssv               (1 << 7) /* no signed system volume */
+#define palerain_option_force_fakefs         (1 << 8) /* force fakefs, even without SSV */
+#define palerain_option_rootless             (1 << 9) /* rootless jailbreak */
 
 #define PALEINFO_MAGIC 'PLSH'
 

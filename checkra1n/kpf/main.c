@@ -2043,7 +2043,6 @@ void kpf_shared_region_root_dir_patch(xnu_pf_patchset_t* patchset) {
     xnu_pf_maskmatch(patchset, "shared_region_root_dir", matches, masks, sizeof(masks)/sizeof(uint64_t), true, (void*)shared_region_root_dir_callback);
 }
 
-#if 0
 bool root_livefs_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
     puts("KPF: Found root_livefs");
     opcode_stream[2] = NOP;
@@ -2063,7 +2062,6 @@ void kpf_root_livefs_patch(xnu_pf_patchset_t* patchset) {
     };
     xnu_pf_maskmatch(patchset, "root_livefs", matches, masks, sizeof(masks)/sizeof(uint64_t), true, (void*)root_livefs_callback);
 }
-#endif
 
 static uint32_t shellcode_count;
 static uint32_t *shellcode_area;
@@ -2335,19 +2333,16 @@ void command_kpf(const char *cmd, char *args)
     const char *cryptex_string_match = memmem(text_cstring_range->cacheable_base, text_cstring_range->size, cryptex_string, sizeof(cryptex_string));
     const char constraints_string[] = "mac_proc_check_launch_constraints";
     const char *constraints_string_match = memmem(text_cstring_range->cacheable_base, text_cstring_range->size, constraints_string, sizeof(constraints_string));
-#if 0
     const char livefs_string[] = "Rooting from the live fs of a sealed volume is not allowed on a RELEASE build";
     const char *livefs_string_match = apfs_text_cstring_range ? memmem(apfs_text_cstring_range->cacheable_base, apfs_text_cstring_range->size, livefs_string, sizeof(livefs_string) - 1) : NULL;
     if(!livefs_string_match) livefs_string_match = memmem(text_cstring_range->cacheable_base, text_cstring_range->size, livefs_string, sizeof(livefs_string) - 1);
-#endif
     
 #ifdef DEV_BUILD
     // 15.0 beta 1 onwards
     if((rootvp_string_match != NULL) != (gKernelVersion.darwinMajor >= 21)) panic("rootvp_auth panic doesn't match expected Darwin version");
-#if 0
+
     // 15.0 beta 1 onwards, but only iOS/iPadOS
     if((livefs_string_match != NULL) != (gKernelVersion.darwinMajor >= 21 && xnu_platform() == PLATFORM_IOS)) panic("livefs panic doesn't match expected Darwin version");
-#endif
     // 16.0 beta 1 onwards
     if((cryptex_string_match != NULL) != (gKernelVersion.darwinMajor >= 22)) panic("Cryptex presence doesn't match expected Darwin version");
     if((constraints_string_match != NULL) != (gKernelVersion.darwinMajor >= 22)) panic("Launch constraints presence doesn't match expected Darwin version");
@@ -2421,12 +2416,14 @@ void command_kpf(const char *cmd, char *args)
     }
 
     kpf_apfs_patches(apfs_patchset, rootvp_string_match == NULL, checkrain_option_enabled(palera1n_flags, palerain_option_rootful));
-#if 0
-    if(livefs_string_match)
+
+    if(livefs_string_match && checkrain_option_enabled(palera1n_flags, palerain_option_rootless_livefs))
     {
         kpf_root_livefs_patch(apfs_patchset);
     }
-#endif
+    if (livefs_string_match == NULL) {
+        palera1n_flags |= palerain_option_no_ssv;
+    }
 
     xnu_pf_emit(apfs_patchset);
     xnu_pf_apply(apfs_text_exec_range, apfs_patchset);
