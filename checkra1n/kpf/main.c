@@ -30,7 +30,9 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <mach-o/loader.h>
-#include <kerninfo.h>
+#include <paleinfo.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <mac.h>
 
 uint32_t offsetof_p_flags;
@@ -2219,7 +2221,7 @@ void kpf_proc_selfname_patch(xnu_pf_patchset_t* patchset) {
     xnu_pf_maskmatch(patchset, "proc_selfname", i_matches, i_masks, sizeof(i_masks)/sizeof(uint64_t), false, (void*)proc_selfname_callback);
 }
 
-static checkrain_option_t gkpf_flags, checkra1n_flags, palera1n_flags;
+static uint64_t palera1n_flags;
 static bool gkpf_didrun = 0;
 
 static void *overlay_buf;
@@ -2396,7 +2398,7 @@ void command_kpf(const char *cmd, char *args)
         }
     }
 
-    kpf_apfs_patches(apfs_patchset, rootvp_string_match == NULL, checkrain_option_enabled(palera1n_flags, palerain_option_rootful));
+    kpf_apfs_patches(apfs_patchset, rootvp_string_match == NULL, (bool)(palera1n_flags & palerain_option_rootful));
 #if 0
     if(livefs_string_match)
     {
@@ -2512,7 +2514,7 @@ void command_kpf(const char *cmd, char *args)
             kpf_shared_region_root_dir_patch(xnu_text_exec_patchset);
         }
         // Signal to ramdisk that we can't have union mounts
-        checkra1n_flags |= checkrain_option_bind_mount;
+        palera1n_flags |= palerain_option_bind_mount;
     }
     if (cryptex_string_match != NULL) kpf_proc_selfname_patch(xnu_text_exec_patchset);
 
@@ -2537,7 +2539,7 @@ void command_kpf(const char *cmd, char *args)
     if (do_ramfile && !IOMemoryDescriptor_withAddress) panic("Missing patch: iomemdesc");
 
 #if 0
-    if(checkrain_option_enabled(palera1n_flags, palerain_option_rootful))
+    if(palera1n_flags & palerain_option_rootful)
     {
         if ((rootvp_string_match != NULL) && !handled_eval_rootauth) panic("Missing patch: handle_eval_rootauth");
         if ((rootvp_string_match != NULL) && !personalized_hash_patched) panic("Missing patch: personalized_root_hash");
@@ -2746,11 +2748,11 @@ void command_kpf(const char *cmd, char *args)
         overlay_buf = NULL;
         overlay_size = 0;
 
-        checkra1n_flags |= checkrain_option_overlay;
+        palera1n_flags |= palerain_option_overlay;
     }
     else
     {
-        checkra1n_flags &= ~checkrain_option_overlay;
+        palera1n_flags &= ~palerain_option_overlay;
     }
 
     // TODO: tmp
@@ -2773,16 +2775,13 @@ void command_kpf(const char *cmd, char *args)
         }
     }
 
-    struct kerninfo *info = NULL;
     struct paleinfo *pinfo = NULL;
     if (ramdisk_buf) {
-        puts("KPF: Found ramdisk, appending kernelinfo");
+        puts("KPF: Found ramdisk, appending paleinfo");
 
         // XXX: Why 0x10000?
         ramdisk_buf = realloc(ramdisk_buf, ramdisk_size + 0x10000);
-        info = (struct kerninfo*)(ramdisk_buf+ramdisk_size);
-        bzero(info, sizeof(struct kerninfo));
-        pinfo = (struct paleinfo *) (ramdisk_buf + ramdisk_size + 0x1000);
+        pinfo = (struct paleinfo*)(ramdisk_buf+ramdisk_size);
         bzero(pinfo, sizeof(struct paleinfo));
 
         *(uint32_t*)(ramdisk_buf) = ramdisk_size;
@@ -2798,18 +2797,16 @@ void command_kpf(const char *cmd, char *args)
             if (cryptex_string_match != NULL) snprintf(pinfo->rootdev, 0x10, "disk1s1");
             else snprintf(pinfo->rootdev, 0x10, "disk0s1s1");
         }
-        pinfo->version = 1;
+        pinfo->version = PALEINFO_VERSION;
         pinfo->flags = palera1n_flags;
         pinfo->magic = PALEINFO_MAGIC;
+        pinfo->kbase = xnu_slide_value(hdr) + 0xFFFFFFF007004000ULL;
+        pinfo->kslide = xnu_slide_value(hdr);
     }
-    if (checkrain_option_enabled(palera1n_flags, checkrain_option_enabled(palera1n_flags, palerain_option_rootful)) && pinfo->rootdev[0] == 0) {
+    if ((palera1n_flags & palerain_option_rootful) && pinfo->rootdev[0] == 0) {
         panic("cannot have rootful when rootdev is unset");
     }
     
-//    if (!ramdisk_buf || !(checkrain_option_enabled(pinfo->flags, palerain_option_rootful) &&
-//            (checkrain_option_enabled(pinfo->flags, palerain_option_setup_rootful) ||
-//             checkrain_option_enabled(pinfo->flags, palerain_option_setup_rootful_forced))) ||
-//            (!checkrain_option_enabled(pinfo->flags, palerain_option_rootful) && rootvp_string_match != NULL)) { // Only use underlying fs on union mounts
     if(!rootvp_string_match) // Only use underlying fs on union mounts
     {
         char *snapshotString = (char*)memmem((unsigned char *)text_cstring_range->cacheable_base, text_cstring_range->size, (uint8_t *)"com.apple.os.update-", strlen("com.apple.os.update-"));
@@ -2820,40 +2817,24 @@ void command_kpf(const char *cmd, char *args)
         puts("KPF: Disabled snapshot temporarily");
     }
 
-    if (info) {
-        info->size = sizeof(struct kerninfo);
-        info->base = xnu_slide_value(hdr) + 0xFFFFFFF007004000ULL;
-        info->slide = xnu_slide_value(hdr);
-        info->flags = checkra1n_flags;
-    }
-    if (checkrain_option_enabled(gkpf_flags, checkrain_option_verbose_boot))
+    if ((bool)(palera1n_flags & palerain_option_verbose_boot))
         gBootArgs->Video.v_display = 0;
     tick_1 = get_ticks();
     printf("KPF: Applied patchset in %llu ms\n", (tick_1 - tick_0) / TICKS_IN_1MS);
 }
 
-void set_flags(char *args, uint32_t *flags, const char *name)
+void set_flags(char *args, uint64_t *flags, const char *name)
 {
     if(args[0] != '\0')
     {
-        uint32_t val = strtoul(args, NULL, 16);
-        printf("Setting %s to 0x%08x\n", name, val);
+        uint64_t val = strtoull(args, NULL, 16);
+        printf("Setting %s to 0x%16llx\n", name, val);
         *flags = val;
     }
     else
     {
-        printf("%s: 0x%08x\n", name, *flags);
+        printf("%s: 0x%16llx\n", name, *flags);
     }
-}
-
-void checkra1n_flags_cmd(const char *cmd, char *args)
-{
-    set_flags(args, &checkra1n_flags, "checkra1n_flags");
-}
-
-void kpf_flags_cmd(const char *cmd, char *args)
-{
-    set_flags(args, &gkpf_flags, "kpf_flags");
 }
 
 void palera1n_flags_cmd(const char *cmd, char *args)
@@ -2977,8 +2958,6 @@ void module_entry(void) {
     puts("#==================");
 
     preboot_hook = (void (*)(void))command_kpf;
-    command_register("checkra1n_flags", "set flags for checkra1n userland", checkra1n_flags_cmd);
-    command_register("kpf_flags", "set flags for kernel patchfinder", kpf_flags_cmd);
     command_register("kpf", "running checkra1n-kpf without booting (use bootux afterwards)", command_kpf);
     command_register("overlay", "loads an overlay disk image", overlay_cmd);
     command_register("dtpatch", "same as `rootfs` for compatibility", dtpatcher);
