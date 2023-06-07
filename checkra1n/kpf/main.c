@@ -205,56 +205,6 @@ bool kpf_mac_mount_callback(struct xnu_pf_patch* patch, uint32_t* opcode_stream)
     return true;
 }
 
-static bool found_launch_constraints = false;
-bool kpf_launch_constraints_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stream)
-{
-    if(found_launch_constraints)
-    {
-        panic("Found launch constraints more than once");
-    }
-    found_launch_constraints = true;
-
-    uint32_t *stp = find_prev_insn(opcode_stream, 0x200, 0xa9007bfd, 0xffc07fff); // stp x29, x30, [sp, ...]
-    if(!stp)
-    {
-        panic_at(opcode_stream, "Launch constraints: failed to find stack frame");
-    }
-
-    uint32_t *start = find_prev_insn(stp, 10, 0xa98003e0, 0xffc003e0); // stp xN, xM, [sp, ...]!
-    if(!start)
-    {
-        start = find_prev_insn(stp, 10, 0xd10003ff, 0xffc003ff); // sub sp, sp, ...
-        if(!start)
-        {
-            panic_at(stp, "Launch constraints: failed to find start of function");
-        }
-    }
-
-    start[0] = 0x52800000; // mov w0, 0
-    start[1] = RET;
-    return true;
-}
-
-void kpf_launch_constraints(xnu_pf_patchset_t *patchset)
-{
-    // Disable launch constraints
-    uint64_t matches[] = {
-        0x52806088, // mov w8, 0x304
-        0x14000000, // b 0x...
-        0x52802088, // mov w8, 0x104
-        0x14000000, // b 0x...
-        0x52804088, // mov w8, 0x204
-    };
-    uint64_t masks[] = {
-        0xffffffff,
-        0xfc000000,
-        0xffffffff,
-        0xfc000000,
-        0xffffffff,
-    };
-    xnu_pf_maskmatch(patchset, "launch_constraints", matches, masks, sizeof(matches)/sizeof(uint64_t), true, (void*)kpf_launch_constraints_callback);
-}
-
 void kpf_mac_mount_patch(xnu_pf_patchset_t* xnu_text_exec_patchset) {
     // This patch makes sure that we can remount the rootfs and that we can UNION mount
     // we first search for a pretty unique instruction movz/orr w9, 0x1ffe
@@ -444,11 +394,21 @@ static bool kpf_vm_map_protect_callback(uint32_t *opcode_stream)
     return true;
 }
 
-static bool kpf_vm_map_protect_branch(struct xnu_pf_patch *patch, uint32_t *opcode_stream)
+static bool kpf_vm_map_protect_branch(uint32_t *opcode_stream)
 {
-    int32_t off = sxt32(opcode_stream[2] >> 5, 19);
-    opcode_stream[2] = 0x14000000 | (uint32_t)off;
-    return kpf_vm_map_protect_callback(opcode_stream + 2 + off); // uint32 takes care of << 2
+    int32_t off = sxt32(*opcode_stream >> 5, 19);
+    *opcode_stream = 0x14000000 | (uint32_t)off;
+    return kpf_vm_map_protect_callback(opcode_stream + off); // uint32 takes care of << 2
+}
+
+static bool kpf_vm_map_protect_branch_long(struct xnu_pf_patch *patch, uint32_t *opcode_stream)
+{
+    return kpf_vm_map_protect_branch(opcode_stream + 2);
+}
+
+static bool kpf_vm_map_protect_branch_short(struct xnu_pf_patch *patch, uint32_t *opcode_stream)
+{
+    return kpf_vm_map_protect_branch(opcode_stream + 1);
 }
 
 static bool kpf_vm_map_protect_inline(struct xnu_pf_patch *patch, uint32_t *opcode_stream)
@@ -537,6 +497,12 @@ static void kpf_vm_map_protect_patch(xnu_pf_patchset_t* xnu_text_exec_patchset)
     // 0xfffffff007afe524      a1000054       b.ne 0xfffffff007afe538
     // 0xfffffff007afe528      88000035       cbnz w8, 0xfffffff007afe538
     //
+    // Or this, since iOS 17:
+    //
+    // 0xfffffff0072c5f84      5f01376a       bics wzr, w10, w23
+    // 0xfffffff0072c5f88      61010054       b.ne 0xfffffff0072c5fb4
+    // 0xfffffff0072c5f8c      4801b837       tbnz w8, 0x17, 0xfffffff0072c5fb4
+    //
     // And then there's a weird carveout from iOS 15.2 to 15.7.x that has stuff inlined in variations of:
     //
     // [and w{0-15}, w{0-15}, 0x800000]                                                 | [tst x{0-15}, 0x800000]
@@ -557,6 +523,7 @@ static void kpf_vm_map_protect_patch(xnu_pf_patchset_t* xnu_text_exec_patchset)
     // /x 00061f121f180071010000540000a837:10feffff1ffeffff1f0000ff1000f8ff
     // /x e003302a1f041f72010000540000a837:f0fff0ff1ffeffff1f0000ff1000e8ff
     // /x e003302a1f041f720100005400000035:f0fff0ff1ffeffff1f0000ff100000ff
+    // /x 1f00306a010000540000a837:1ffef0ff1f0000ff1000e8ff
     // /x e003302a00041f12:f0fff0ff10feffff
     uint64_t matches_old[] = {
         0x121f0600, // and w{0-15}, w{16-31}, 6
@@ -570,7 +537,7 @@ static void kpf_vm_map_protect_patch(xnu_pf_patchset_t* xnu_text_exec_patchset)
         0xff00001f,
         0xfff80010,
     };
-    xnu_pf_maskmatch(xnu_text_exec_patchset, "vm_map_protect", matches_old, masks_old, sizeof(matches_old)/sizeof(uint64_t), false, (void*)kpf_vm_map_protect_branch);
+    xnu_pf_maskmatch(xnu_text_exec_patchset, "vm_map_protect", matches_old, masks_old, sizeof(matches_old)/sizeof(uint64_t), false, (void*)kpf_vm_map_protect_branch_long);
 
     uint64_t matches_new[] = {
         0x2a3003e0, // mvn w{0-15}, w{16-31}
@@ -584,11 +551,23 @@ static void kpf_vm_map_protect_patch(xnu_pf_patchset_t* xnu_text_exec_patchset)
         0xff00001f,
         0xffe80010,
     };
-    xnu_pf_maskmatch(xnu_text_exec_patchset, "vm_map_protect", matches_new, masks_new, sizeof(matches_new)/sizeof(uint64_t), false, (void*)kpf_vm_map_protect_branch);
+    xnu_pf_maskmatch(xnu_text_exec_patchset, "vm_map_protect", matches_new, masks_new, sizeof(matches_new)/sizeof(uint64_t), false, (void*)kpf_vm_map_protect_branch_long);
 
     matches_new[3] = 0x35000000; // cbnz w{0-15}, 0x...
     masks_new[3]   = 0xff000010;
-    xnu_pf_maskmatch(xnu_text_exec_patchset, "vm_map_protect", matches_new, masks_new, sizeof(matches_new)/sizeof(uint64_t), false, (void*)kpf_vm_map_protect_branch);
+    xnu_pf_maskmatch(xnu_text_exec_patchset, "vm_map_protect", matches_new, masks_new, sizeof(matches_new)/sizeof(uint64_t), false, (void*)kpf_vm_map_protect_branch_long);
+
+    uint64_t matches17[] = {
+        0x6a30001f, // bics wzr, w{0-15}, w{16-31}
+        0x54000001, // b.ne 0x...
+        0x37a80000, // tbnz w{0-15}, {0x15 | 0x17}, 0x...
+    };
+    uint64_t masks17[] = {
+        0xfff0fe1f,
+        0xff00001f,
+        0xffe80010,
+    };
+    xnu_pf_maskmatch(xnu_text_exec_patchset, "vm_map_protect", matches17, masks17, sizeof(matches17)/sizeof(uint64_t), false, (void*)kpf_vm_map_protect_branch_short);
 
     uint64_t matches_inline[] = {
         0x2a3003e0, // mvn w{0-15}, w{16-31}
@@ -1068,7 +1047,12 @@ bool kpf_apfs_auth_required(struct xnu_pf_patch* patch, uint32_t* opcode_stream)
 #endif
 
 bool kpf_apfs_vfsop_mount(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
-    opcode_stream[0] = 0x52800000; /* mov w0, 0 */
+    uint32_t *tbnz = find_prev_insn(opcode_stream, 2, 0x37700000, 0xfff8001f); // tbnz w0, 0xe, *
+    if (!tbnz) {
+        return false;
+    }
+
+    *tbnz = 0x52800000; /* mov w0, 0 */
     
     printf("KPF: found apfs_vfsop_mount\n");
     
@@ -1271,13 +1255,11 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union, bool have_ro
         // when mounting an apfs volume, there is a check to make sure the volume is not read/write
         // we just nop the check out
         // example from iPad 6 16.1.1:
-        // 0xfffffff0064023a4      a00b7037       tbnz w0, 0xe, 0xfffffff006402518
         // 0xfffffff0064023a8      e8b340b9       ldr w8, [sp, 0xb0]  ; 5
         // 0xfffffff0064023ac      08791f12       and w8, w8, 0xfffffffe
         // 0xfffffff0064023b0      e8b300b9       str w8, [sp, 0xb0]
-        // r2: /x 00007037a00340b900781f12a00300b9:1f00f8ffa003feff00fcffffa003c0ff
+        // r2: /x a00340b900781f12a00300b9:a003feff00fcffffa003c0ff
         uint64_t remount_matches[] = {
-            0x37700000, // tbnz w0, 0xe, *
             0xb94003a0, // ldr x*, [x29/sp, *]
             0x121f7800, // and w*, w*, 0xfffffffe
             0xb90003a0, // str x*, [x29/sp, *]
@@ -1839,27 +1821,23 @@ bool vnop_rootvp_auth_callback(struct xnu_pf_patch *patch, uint32_t *opcode_stre
     // 0xfffffff00759c9b0      087969f8       ldr x8, [x8, x9, lsl 3]
     // 0xfffffff00759c9b4      e0c30291       add x0, sp, 0xb0
     // 0xfffffff00759c9b8      00013fd6       blr x8
-    if
-    (
-        (
-            (opcode_stream[2] & 0xffc003e0) == 0xa90003e0 && // stp xN, xM, [sp, ...]
-            ((opcode_stream[2] & 0x1f) == (opcode_stream[1] & 0x1f) || ((opcode_stream[2] >> 10) & 0x1f) == (opcode_stream[1] & 0x1f)) // match reg
-        ) ||
-        (
-            (opcode_stream[2] & 0xffc003e0) == 0xF90003E0 && // str xN, [sp, ...]
-            (opcode_stream[2] & 0x1f) == (opcode_stream[1] & 0x1f) // match reg
-        )
-    )
+    uint32_t reg = opcode_stream[1] & 0x1f;
+    uint32_t op = opcode_stream[2];
+    uint32_t *sp = NULL;
+    if((op & 0xffe07fff) == (0xa9007fe0 | reg)) // stp xN, xzr, [sp, 0x...]
     {
-        // add x0, sp, 0x...
-        uint32_t *sp = find_next_insn(opcode_stream + 3, 0x10, 0x910003e0, 0xffc003ff);
-        if(sp && (sp[1] & 0xfffffc1f) == 0xd63f0000) // blr
-        {
-            puts("KPF: Found vnop_rootvp_auth");
-            // Replace the call with mov x0, 0
-            sp[1] = 0xd2800000;
-            return true;
-        }
+        sp = find_next_insn(opcode_stream + 3, 0x10, 0x910003e0, 0xffc003ff); // add x0, sp, 0x...
+    }
+    else if((op & 0xffe07fff) == (0xa9207fa0 | reg)) // stp xN, xzr, [x29, -0x...]
+    {
+        sp = find_next_insn(opcode_stream + 3, 0x10, 0xd10003a0, 0xffc003ff); // sub x0, x29, 0x...
+    }
+    if(sp && (sp[1] & 0xfffffc1f) == 0xd63f0000) // blr
+    {
+        puts("KPF: Found vnop_rootvp_auth");
+        // Replace the call with mov x0, 0
+        sp[1] = 0xd2800000;
+        return true;
     }
     return false;
 }
@@ -2262,6 +2240,7 @@ void command_kpf(const char *cmd, char *args)
     {
         &kpf_developer_mode,
         &kpf_dyld,
+        &kpf_launch_constraints,
         &kpf_mach_port,
         &kpf_nvram,
         &kpf_shellcode,
@@ -2327,14 +2306,12 @@ void command_kpf(const char *cmd, char *args)
     xnu_pf_patchset_t* apfs_patchset = xnu_pf_patchset_create(XNU_PF_ACCESS_32BIT);
     struct mach_header_64* apfs_header = xnu_pf_get_kext_header(hdr, "com.apple.filesystems.apfs");
     xnu_pf_range_t* apfs_text_exec_range = xnu_pf_section(apfs_header, "__TEXT_EXEC", "__text");
-    xnu_pf_range_t* apfs_text_cstring_range = xnu_pf_section(apfs_header, "__TEXT", "__cstring");
+    //xnu_pf_range_t* apfs_text_cstring_range = xnu_pf_section(apfs_header, "__TEXT", "__cstring");
 
     const char rootvp_string[] = "rootvp not authenticated after mounting";
     const char *rootvp_string_match = memmem(text_cstring_range->cacheable_base, text_cstring_range->size, rootvp_string, sizeof(rootvp_string) - 1);
     const char cryptex_string[] = "/private/preboot/Cryptexes";
     const char *cryptex_string_match = memmem(text_cstring_range->cacheable_base, text_cstring_range->size, cryptex_string, sizeof(cryptex_string));
-    const char constraints_string[] = "mac_proc_check_launch_constraints";
-    const char *constraints_string_match = memmem(text_cstring_range->cacheable_base, text_cstring_range->size, constraints_string, sizeof(constraints_string));
 #if 0
     const char livefs_string[] = "Rooting from the live fs of a sealed volume is not allowed on a RELEASE build";
     const char *livefs_string_match = apfs_text_cstring_range ? memmem(apfs_text_cstring_range->cacheable_base, apfs_text_cstring_range->size, livefs_string, sizeof(livefs_string) - 1) : NULL;
@@ -2350,7 +2327,6 @@ void command_kpf(const char *cmd, char *args)
 #endif
     // 16.0 beta 1 onwards
     if((cryptex_string_match != NULL) != (gKernelVersion.darwinMajor >= 22)) panic("Cryptex presence doesn't match expected Darwin version");
-    if((constraints_string_match != NULL) != (gKernelVersion.darwinMajor >= 22)) panic("Launch constraints presence doesn't match expected Darwin version");
 #endif
 
     for(size_t i = 0; i < sizeof(kpf_components)/sizeof(kpf_components[0]); ++i)
@@ -2436,10 +2412,6 @@ void command_kpf(const char *cmd, char *args)
     struct mach_header_64* amfi_header = xnu_pf_get_kext_header(hdr, "com.apple.driver.AppleMobileFileIntegrity");
     xnu_pf_range_t* amfi_text_exec_range = xnu_pf_section(amfi_header, "__TEXT_EXEC", "__text");
     kpf_amfi_kext_patches(amfi_patchset);
-    if(constraints_string_match)
-    {
-        kpf_launch_constraints(amfi_patchset);
-    }
     xnu_pf_emit(amfi_patchset);
     xnu_pf_apply(amfi_text_exec_range, amfi_patchset);
     xnu_pf_patchset_destroy(amfi_patchset);
@@ -2820,10 +2792,10 @@ void command_kpf(const char *cmd, char *args)
     if (pinfo) {
         strncpy(pinfo->rootdev, rootdev, 0x10);
         if (rootdev[0] == 0 && partid != 0) {
-            if (constraints_string_match != NULL) snprintf(pinfo->rootdev, 0x10, "disk1s%u", partid);
+            if (cryptex_string_match != NULL) snprintf(pinfo->rootdev, 0x10, "disk1s%u", partid);
             else snprintf(pinfo->rootdev, 0x10, "disk0s1s%u", partid);
         } else {
-            if (constraints_string_match != NULL) snprintf(pinfo->rootdev, 0x10, "disk1s1");
+            if (cryptex_string_match != NULL) snprintf(pinfo->rootdev, 0x10, "disk1s1");
             else snprintf(pinfo->rootdev, 0x10, "disk0s1s1");
         }
         pinfo->version = 1;
@@ -2994,7 +2966,7 @@ void module_entry(void) {
     puts("# If you purchased this, please");
     puts("# report the seller.");
     puts("#");
-    puts("# Get it for free at https://github.com/plooshi/PongoOS");
+    puts("# Get it for free at https://github.com/palera1n/PongoOS");
     puts("#");
     puts("#====  Made by  ===");
     puts("# argp, axi0mx, danyl931, jaywalker, kirb, littlelailo, nitoTV");

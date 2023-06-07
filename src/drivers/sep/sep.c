@@ -30,7 +30,7 @@
 #include <recfg/recfg_soc.h>
 
 #define IRQ_T8015_SEP_INBOX_NOT_EMPTY 0x79
-// #define SEP_DEBUG
+#define SEP_DEBUG
 
 struct mailbox_registers32 {
     volatile uint32_t dis_int; // 0x0
@@ -92,10 +92,16 @@ void (*sepfw_kpf_hook)(void* sepfw_bytes, size_t sepfw_size);
 void sepfw_kpf(void* sepfw_bytes, size_t sepfw_size) {
     uint32_t* insn_stream = sepfw_bytes;
     for (uint32_t i=0; i < sepfw_size/4; i++) {
-        if (insn_stream[i] == 0xe1810200) {
-            insn_stream[i] = 0xe3a00000;
+        if (insn_stream[i] == 0xe1810200) { // orr r0, r1, r0, lsl 4
+            insn_stream[i] = 0xe3a00000; // mov r0, 0
 #ifdef SEP_DEBUG
-            fiprintf(stderr, "patched out bpr check\n");
+            fiprintf(stderr, "patched out bpr check (orr) at 0x%x\n", i * 4);
+#endif
+            break;
+        } else if (insn_stream[i] == 0xe1930200) { // orrs r0, r3, r0, lsl 4
+            insn_stream[i] = 0xe1500000; // cmp r0, r0
+#ifdef SEP_DEBUG
+            fiprintf(stderr, "patched out bpr check (orrs) at 0x%x\n", i * 4);
 #endif
             break;
         }
@@ -240,7 +246,7 @@ void sep_handle_msg_from_sep(union sep_message_u msg) {
 
     // [tbd]
 }
-void sep_check_mailbox(void) {
+void sep_check_mailbox() {
     uint32_t sts = (is_sep64) ? mailboxregs64->recv_sts : mailboxregs32->recv_sts;
     if ((sts & 0x20000) == 0) {
         union sep_message_u msg;
@@ -249,20 +255,20 @@ void sep_check_mailbox(void) {
         event_fire(&sep_msg_event);
     }
 }
-uint64_t sep_fast_check_mailbox(void) {
+uint64_t sep_fast_check_mailbox() {
     uint32_t sts = (is_sep64) ? mailboxregs64->recv_sts : mailboxregs32->recv_sts;
     if ((sts & 0x20000) == 0) {
         return mailbox_read_fast();
     }
     return 0;
 }
-void sep_irq(void) {
+void sep_irq() {
     while (1) {
         sep_check_mailbox();
         task_exit_irq();
     }
 }
-void seprom_ping(void) {
+void seprom_ping() {
     disable_interrupts();
     seprom_execute_opcode(1, 0, 0);
     event_wait_asserted(&sep_msg_event);
@@ -341,7 +347,7 @@ static bool seprom_config_integrity_tree(bool sync) {
     else     spin(2400);
     return true;
 }
-void seprom_boot_tz0(void) {
+void seprom_boot_tz0() {
     fuse_lock();
     // This needs disable_interrupts after
     if(!seprom_config_integrity_tree(true)) return;
@@ -349,7 +355,7 @@ void seprom_boot_tz0(void) {
     seprom_execute_opcode(5, 0, 0);
     event_wait_asserted(&sep_done_tz0_event);
 }
-void seprom_boot_tz0_async(const char* cmd, char* args) {
+void seprom_boot_tz0_async() {
     fuse_lock();
     // This needs disable_interrupts first
     disable_interrupts();
@@ -367,7 +373,7 @@ void seprom_load_sepos(void *firmware, char mode) {
     seprom_execute_opcode(6, mode, vatophys((uint64_t) (firmware)) >> 12);
     event_wait_asserted(&sep_msg_event);
 }
-void seprom_fwload(void) {
+void seprom_fwload() {
     // We clear this here to account for "sep auto" followed by manual invocation
     is_waiting_to_boot = 0;
     seprom_load_sepos(gSEPFW, 0);
@@ -645,7 +651,7 @@ no_kbag:
 }
 
 
-void seprom_fwload_race(void) {
+void seprom_fwload_race() {
     uint32_t volatile* shmshc = (uint32_t*)0x210E00000;
 
     if (shmshc[0] == 0xea000002) {
@@ -880,24 +886,24 @@ void seprom_load_art(void* art, char mode) {
     seprom_execute_opcode(6, mode, (vatophys((uint64_t)art)) >> 12);
     event_wait_asserted(&sep_msg_event);
 }
-void seprom_artload(const char* cmd, char* args) {
+void seprom_artload() {
     if (!loader_xfer_recv_count) {
         iprintf("please upload an ART before issuing this command\n");
         return;
     }
     seprom_load_art((void*)loader_xfer_recv_data, 0);
 }
-void seprom_resume(const char* cmd, char* args) {
+void seprom_resume() {
     disable_interrupts();
     seprom_execute_opcode(8, 0, 0);
     event_wait_asserted(&sep_msg_event);
 }
-void seprom_panic(const char* cmd, char* args) {
+void seprom_panic() {
     disable_interrupts();
     seprom_execute_opcode(10, 0, 0);
     event_wait_asserted(&sep_msg_event);
 }
-void seprom_rand(const char* cmd, char* args) {
+void seprom_rand() {
     disable_interrupts();
     seprom_execute_opcode(16, 0, 0);
     event_wait_asserted(&sep_rand_event);
@@ -911,7 +917,7 @@ struct sep_command {
     void (*cb)(const char* cmd, char* args);
 };
 
-void sep_help(const char* cmd, char* args);
+void sep_help();
 #define SEP_COMMAND(_name, _desc, _cb) {.name = _name, .desc = _desc, .cb = _cb}
 void sep_pwned_peek(const char* cmd, char* args) {
     if(!sep_is_pwned) {
@@ -1125,15 +1131,15 @@ static struct sep_command command_table[] = {
     SEP_COMMAND("help", "show usage", sep_help),
     SEP_COMMAND("auto", "automatically decide what to do", sep_auto),
 #ifndef SEP_AUTO_ONLY
-    SEP_COMMAND("ping", "ping seprom", (void (*)(const char* cmd, char* args))seprom_ping),
-    SEP_COMMAND("tz0", "tell seprom to boot_tz0", (void (*)(const char* cmd, char* args))seprom_boot_tz0),
+    SEP_COMMAND("ping", "ping seprom", seprom_ping),
+    SEP_COMMAND("tz0", "tell seprom to boot_tz0", seprom_boot_tz0),
     SEP_COMMAND("tz0a", "tell seprom to boot_tz0 without waiting", seprom_boot_tz0_async),
-    SEP_COMMAND("fwload", "tell seprom to load sepos image", (void (*)(const char* cmd, char* args))seprom_fwload),
+    SEP_COMMAND("fwload", "tell seprom to load sepos image", seprom_fwload),
     SEP_COMMAND("artload", "tell seprom to load anti-replay token", seprom_artload),
     SEP_COMMAND("resume", "tell seprom to resume", seprom_resume),
     SEP_COMMAND("panic", "tell seprom to panic", seprom_panic),
     SEP_COMMAND("rand", "ask seprom for randomness", seprom_rand),
-    SEP_COMMAND("pwn", "get sep code execution (must run while in seprom before tz0 lockdown / initialization)", (void (*)(const char* cmd, char* args))seprom_fwload_race),
+    SEP_COMMAND("pwn", "get sep code execution (must run while in seprom before tz0 lockdown / initialization)", seprom_fwload_race),
     SEP_COMMAND("peek", "read a 32 bit value", sep_pwned_peek),
     SEP_COMMAND("poke", "write a 32 bit value", sep_pwned_poke),
     SEP_COMMAND("jump", "jump to address", sep_pwned_jump),
