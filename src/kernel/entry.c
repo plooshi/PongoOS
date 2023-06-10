@@ -245,6 +245,7 @@ __attribute__((noinline)) void pongo_entry_cached(void)
     {
         default: // >4
         case BOOT_FLAG_RAW: // 4
+            boot_msg = "Booting raw image...";
             break;
 
         case BOOT_FLAG_LINUX: // 3
@@ -322,8 +323,9 @@ _Noreturn void pongo_entry(uint64_t *kernel_args, void *entryp, void (*exit_to_e
         {
             __asm__ volatile("smc 0"); // elevate to EL3
         }
-        // XXX: We should really replace loader_xfer_recv_data with something dedicated here.
-        jump_to_image_extended(((uint64_t)loader_xfer_recv_data) - kCacheableView + 0x800000000, (uint64_t)gBootArgs, 0, (uint64_t)gEntryPoint);
+        //memcpy((void*)0x828000000, loader_xfer_recv_data, loader_xfer_recv_size);
+        //screen_puts("survived memcpy!");
+        jump_to_image_extended((uint64_t)loader_xfer_recv_data - kCacheableView + 0x800000000, (uint64_t)gBootArgs, 0, (uint64_t)gEntryPoint);
     }
     else
     {

@@ -41,6 +41,7 @@ void pongo_boot_raw(const char* cmd, char* args) {
         iprintf("please upload a raw image before issuing this command\n");
         return;
     }
+    iprintf("image addr = %p\n", vatophys(loader_xfer_recv_data));
     loader_xfer_recv_count = 0;
     gBootFlag = BOOT_FLAG_RAW;
     task_yield();
