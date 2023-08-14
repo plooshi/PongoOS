@@ -127,7 +127,6 @@ uint32_t* follow_call(uint32_t *from)
     return target;
 }
 
-#ifdef DEV_BUILD
 struct kernel_version gKernelVersion;
 static void kpf_kernel_version_init(xnu_pf_range_t *text_const_range)
 {
@@ -153,9 +152,8 @@ static void kpf_kernel_version_init(xnu_pf_range_t *text_const_range)
     if(!start) panic("Error parsing kernel version");
     gKernelVersion.xnuMajor = strtoimax(start+1, &end, 10);
     if(errno) panic("Error parsing kernel version");
-    printf("Detected Kernel version Darwin: %d.%d.%d xnu: %d\n", gKernelVersion.darwinMajor, gKernelVersion.darwinMinor, gKernelVersion.darwinRevision, gKernelVersion.xnuMajor);
+    //printf("Detected Kernel version Darwin: %d.%d.%d xnu: %d\n", gKernelVersion.darwinMajor, gKernelVersion.darwinMinor, gKernelVersion.darwinRevision, gKernelVersion.xnuMajor);
 }
-#endif
 
 // Imports from shellcode.S
 extern uint32_t sandbox_shellcode[], sandbox_shellcode_setuid_patch[], sandbox_shellcode_ptrs[], sandbox_shellcode_end[];
@@ -1038,16 +1036,21 @@ bool kpf_apfs_auth_required(struct xnu_pf_patch* patch, uint32_t* opcode_stream)
 
 bool has_found_apfs_vfsop_mount = false;
 bool kpf_apfs_vfsop_mount(struct xnu_pf_patch *patch, uint32_t *opcode_stream) {
-    if (!opcode_stream) {
-        printf("Missing patch: apfs_vfsop_mount\n");
+    uint32_t tbnz_offset = (opcode_stream[1] >> 5) & 0x3fff;
+    uint32_t *tbnz_stream = opcode_stream + 1 + tbnz_offset;
+    uint32_t *adrp = find_next_insn(tbnz_stream, 10, 0x90000000, 0x9f00001f); // adrp
+    if (!adrp) {
         return false;
     }
-    uint32_t *tbnz = find_prev_insn(opcode_stream, 2, 0x37700000, 0xfff8001f); // tbnz w0, 0xe, *
-    if (!tbnz) {
-        return false;
-    }
+    if ((adrp[1] & 0xff80001f) != 0x91000000) return false;
+    uint64_t page = ((uint64_t)adrp & ~0xfffULL) + adrp_off(adrp[0]);
+    uint32_t off = (adrp[1] >> 10) & 0xfff;
+    const char *str = (const char*)(page + off);
+    if (strcmp(str, "%s:%d: %s Updating mount to read/write mode is not allowed\n") != 0) {
+		return false;
+	}
 
-    *tbnz = 0x52800000; /* mov w0, 0 */
+    opcode_stream[1] = 0x52800000; /* mov w0, 0 */
     has_found_apfs_vfsop_mount = true;
     
     printf("KPF: found apfs_vfsop_mount\n");
@@ -1126,16 +1129,16 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union) {
     // r2 cmd:
     // /x 0000403908011b3200000039000000b9:0000c0bfffffffff0000c0bf000000ff
     uint64_t matches[] = {
-        0x39400000, // ldr{b|h} w*, [x*]
-        0x321b0108, // orr w8, w8, 0x20
+        //0x39400000, // ldr{b|h} w*, [x*]
+        0x321b0008, // orr w8, w*, 0x20
         0x39000000, // str{b|h} w*, [x*]
-        0xb9000000  // str w*, [x*]
+        0xb9000000  // str/ldr w*, [x*]
     };
     uint64_t masks[] = {
+        //0xbfc00000,
+        0xfffffc1f,
         0xbfc00000,
-        0xffffffff,
-        0xbfc00000,
-        0xff000000,
+        0xbf000000,
     };
     xnu_pf_maskmatch(patchset, "apfs_patch_mount", matches, masks, sizeof(matches)/sizeof(uint64_t), true, (void*)kpf_apfs_patches_mount);
     if(have_union)
@@ -1180,15 +1183,13 @@ void kpf_apfs_patches(xnu_pf_patchset_t* patchset, bool have_union) {
         // 0xfffffff0064023b0      e8b300b9       str w8, [sp, 0xb0]
         // r2: /x a00340b900781f12a00300b9:a003feff00fcffffa003c0ff
         uint64_t remount_matches[] = {
-            0xb94003a0, // ldr x*, [x29/sp, *]
-            0x121f7800, // and w*, w*, 0xfffffffe
-            0xb90003a0, // str x*, [x29/sp, *]
+	        0x94000000, // bl
+            0x37700000  // tbnz w0, 0xe, *
         };
         
         uint64_t remount_masks[] = {
-            0xfffe03a0,
-            0xfffffc00,
-            0xffc003a0,
+	        0xfc000000,
+            0xfff8001f
         };
         
         xnu_pf_maskmatch(patchset,
@@ -1790,11 +1791,10 @@ static void kpf_cmd(const char *cmd, char *args)
     struct mach_header_64* hdr = xnu_header();
     xnu_pf_range_t* text_cstring_range = xnu_pf_section(hdr, "__TEXT", "__cstring");
 
-#ifdef DEV_BUILD
     xnu_pf_range_t *text_const_range = xnu_pf_section(hdr, "__TEXT", "__const");
     kpf_kernel_version_init(text_const_range);
     free(text_const_range);
-#endif
+    printf("Detected Kernel version Darwin: %d.%d.%d xnu: %d\n", gKernelVersion.darwinMajor, gKernelVersion.darwinMinor, gKernelVersion.darwinRevision, gKernelVersion.xnuMajor);
 
     // extern struct mach_header_64* xnu_pf_get_kext_header(struct mach_header_64* kheader, const char* kext_bundle_id);
 
@@ -1996,8 +1996,6 @@ static void kpf_cmd(const char *cmd, char *args)
 #endif
       if (palera1n_flags & palerain_option_rootful) {
         panic("Missing patch: apfs_vfsop_mount");
-      } else {
-        puts("Missing patch: apfs_vfsop_mount");
       }
     }
 
@@ -2150,6 +2148,16 @@ static void palera1n_flags_cmd(const char *cmd, char *args)
     set_flags(args, &palera1n_flags, "palera1n_flags");
 }
 
+static void darwin_cmd(const char *cmd, char *args) {
+    struct mach_header_64* hdr = xnu_header();
+
+    xnu_pf_range_t *text_const_range = xnu_pf_section(hdr, "__TEXT", "__const");
+    kpf_kernel_version_init(text_const_range);
+    free(text_const_range);
+
+    printf("Device is running Darwin %d\n", gKernelVersion.darwinMajor);
+}
+
 void module_entry(void)
 {
     puts("");
@@ -2188,6 +2196,7 @@ void module_entry(void)
     command_register("palera1n_flags", "set flags for checkra1n userland", palera1n_flags_cmd);
     command_register("kpf", "running checkra1n-kpf without booting (use bootux afterwards)", kpf_cmd);
     command_register("overlay", "loads an overlay disk image", kpf_overlay_cmd);
+    command_register("darwin", "get the kernel's Darwin version", darwin_cmd);
 }
 const char *module_name = "checkra1n-kpf2-12.0,16.4";
 

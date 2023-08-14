@@ -33,7 +33,7 @@
 #include <stdio.h>
 #include <string.h>
 
-extern uint32_t dyld_shc[], dyld_shc_ctx[], dyld_shc_lookup[], dyld_shc_put[], dyld_shc_end[];
+extern uint32_t dyld_shc[], dyld_shc_ctx[], dyld_shc_lookup[], dyld_shc_put[], dyld_shc_end[], dyld_path[], new_dyld_path[], old_dyld_path[];
 
 static uint32_t *dyld_hook_patchpoint;
 
@@ -191,10 +191,15 @@ static uint32_t kpf_dyld_emit(uint32_t *shellcode_area)
     size_t ctx_idx    = dyld_shc_ctx    - dyld_shc;
     size_t lookup_idx = dyld_shc_lookup - dyld_shc;
     size_t put_idx    = dyld_shc_put    - dyld_shc;
+    size_t path_idx   = dyld_path       - dyld_shc;
+
+    size_t new_idx    = new_dyld_path   - dyld_path;
+    size_t old_idx    = old_dyld_path   - dyld_path;
 
     int64_t ctx_off    = vfs_context_current - (shellcode_addr + (ctx_idx    << 2));
     int64_t lookup_off = vnode_lookup        - (shellcode_addr + (lookup_idx << 2));
     int64_t put_off    = vnode_put           - (shellcode_addr + (put_idx    << 2));
+    int64_t path_off   = (gKernelVersion.darwinMajor >= 21) ? new_idx : old_idx;
     int64_t patch_off  = shellcode_addr - patchpoint_addr;
     if(ctx_off > 0x7fffffcLL || ctx_off < -0x8000000LL || lookup_off > 0x7fffffcLL || lookup_off < -0x8000000LL || put_off > 0x7fffffcLL || put_off < -0x8000000LL || patch_off > 0x7fffffcLL || patch_off < -0x8000000LL)
     {
@@ -206,6 +211,7 @@ static uint32_t kpf_dyld_emit(uint32_t *shellcode_area)
     shellcode_area[ctx_idx]    |= (ctx_off    >> 2) & 0x03ffffff;
     shellcode_area[lookup_idx] |= (lookup_off >> 2) & 0x03ffffff;
     shellcode_area[put_idx]    |= (put_off    >> 2) & 0x03ffffff;
+    shellcode_area[path_idx]   |= (path_off & 0x7ffff) << 5;
     *dyld_hook_patchpoint      |= (patch_off  >> 2) & 0x03ffffff;
 
     return dyld_shc_end - dyld_shc;

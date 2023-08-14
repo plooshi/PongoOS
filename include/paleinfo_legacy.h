@@ -58,6 +58,8 @@ struct kerninfo {
     uint64_t base;
     uint64_t slide;
     checkrain_option_t flags;
+    uint16_t cpid;
+    char bootargs[MAX_BOOTARGS_LEN];
 };
 struct paleinfo1 {
     uint32_t magic; // 'PLSH' / 0x504c5348

@@ -23,7 +23,7 @@ KPF_CC_FLAGS_LINUX      := -std=gnu17 -Wall -Wno-strict-prototypes -O3 -flto -I$
 
 ifeq ($(HOST_OS),Darwin)
 	IOS_CC              ?= xcrun -sdk iphoneos clang --target=arm64-apple-ios7.0
-	MACOS_CC            ?= clang --target=arm64-apple-macos11.0
+	MACOS_CC            ?= clang --target=x86_64-apple-macos11.0
 	SIGN                ?= codesign -s - --entitlements ent.plist
 else
 ifeq ($(HOST_OS),Linux)

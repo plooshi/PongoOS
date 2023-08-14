@@ -246,6 +246,9 @@ _sandbox_shellcode_end:
 .globl _dyld_shc_lookup
 .globl _dyld_shc_put
 .globl _dyld_shc_end
+.globl _dyld_path
+.globl _new_dyld_path
+.globl _old_dyld_path
 .align 2
 _dyld_shc:
     stp x29, x30, [sp, -0x20]!
@@ -254,22 +257,27 @@ _dyld_shc_ctx:
     mov x3, x0
     add x2, sp, 0x18
     mov w1, 0
-    adr x0, L_alt_dyld_path
+    bl _dyld_path
 _dyld_shc_lookup:
     bl . // vnode_lookup
     cbnz w0, L_dyld_shc_no_hook
     ldr x0, [sp, 0x18]
 _dyld_shc_put:
     bl . // vnode_put
-    adr x0, L_alt_dyld_path
+    bl _dyld_path
     b L_dyld_shc_epilog
 L_dyld_shc_no_hook:
     adr x0, L_dyld_path
 L_dyld_shc_epilog:
     ldp x29, x30, [sp], 0x20
     ret
-L_alt_dyld_path:
+_dyld_path:
+    adr x0, .
+    ret
+_new_dyld_path:
     .asciz "/cores/dyld"
+_old_dyld_path:
+    .asciz "/binpack/lib/dyld"
 L_dyld_path:
     .asciz "/usr/lib/dyld"
 .align 2

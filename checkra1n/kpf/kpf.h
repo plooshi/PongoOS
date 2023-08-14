@@ -100,7 +100,6 @@ static inline int64_t adrp_off(uint32_t adrp)
     return sxt64((((((uint64_t)adrp >> 5) & 0x7ffffULL) << 2) | (((uint64_t)adrp >> 29) & 0x3ULL)) << 12, 33);
 }
 
-#ifdef DEV_BUILD
 extern struct kernel_version
 {
     uint32_t darwinMajor;
@@ -108,7 +107,6 @@ extern struct kernel_version
     uint32_t darwinRevision;
     uint32_t xnuMajor;
 } gKernelVersion;
-#endif
 
 /********** ********** ********** ********** ********** Components ********** ********** ********** ********** **********/
 
@@ -124,6 +122,7 @@ extern kpf_component_t kpf_trustcache;
 extern kpf_component_t kpf_vfs;
 extern kpf_component_t kpf_vm_prot;
 extern kpf_component_t kpf_proc_selfname;
+extern 
 
 /********** ********** ********** ********** ********** Exports ********** ********** ********** ********** **********/
 

@@ -169,6 +169,8 @@ static void kpf_ramdisk_init(struct mach_header_64 *hdr, xnu_pf_range_t *cstring
 }
 
 #define PINFO2PINFO1_MAP(name) { palerain_option_ ## name , palerain1_option_ ## name }
+#define old_checkrain_option_safemode       (1 << 0)
+#define old_checkrain_option_verbose_boot   (1 << 1)
 
 static void kpf_ramdisk_bootprep(struct mach_header_64 *hdr, palerain_option_t palera1n_flags)
 {
@@ -195,6 +197,13 @@ static void kpf_ramdisk_bootprep(struct mach_header_64 *hdr, palerain_option_t p
             { palerain_option_force_revert, checkrain_option_force_revert },
             { 0ULL, 0U }
         };
+        struct new_old_info_mapping pkinfo_mapping_old[] = {
+            { palerain_option_overlay, checkrain_option_overlay },
+            { palerain_option_safemode, old_checkrain_option_safemode },
+            { palerain_option_verbose_boot, old_checkrain_option_verbose_boot },
+            { palerain_option_force_revert, checkrain_option_force_revert },
+            { 0ULL, 0U }
+        };
 
         struct new_old_info_mapping pinfo2pinfo1_mapping[] = {
             PINFO2PINFO1_MAP(rootful),
@@ -207,9 +216,15 @@ static void kpf_ramdisk_bootprep(struct mach_header_64 *hdr, palerain_option_t p
         };
 
         uint32_t checkra1n_flags = 0;
-        for (uint8_t i = 0; pkinfo_mapping[i].old_info != 0U; i++) {
-            if (palera1n_flags & pkinfo_mapping[i].new_info)
-                checkra1n_flags |= pkinfo_mapping[i].old_info;
+        struct new_old_info_mapping *mapping;
+        if (gKernelVersion.darwinMajor >= 21) {
+            mapping = pkinfo_mapping;
+        } else {
+            mapping = pkinfo_mapping_old;
+        }
+        for (uint8_t i = 0; mapping[i].old_info != 0U; i++) {
+            if (palera1n_flags & mapping[i].new_info)
+                checkra1n_flags |= mapping[i].old_info;
         }
 
         uint32_t palera1n1_flags = 0;
